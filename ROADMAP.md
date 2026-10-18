@@ -80,7 +80,8 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   protocol remain unchanged. The web player and Chromecast do not inherit
   these local chapter-title rules. The chapter observer is cancelled when
   episodes change and checks the active episode again before applying a seek,
-  so a late update cannot advance the next episode. [#13](../../issues/13)
+  so a late update cannot advance the next episode. Playback seeks happen only
+  on entering a skipped chapter, not on every position update. [#13](../../issues/13)
 - UK English and Podcast Addict-familiar wording without changing Pocket Casts
   protocol fields or falsely relabelling deletion. [#16](../../issues/16)
 - Purple app icon, the name **Podcast Player**, reviewable upstream updates.

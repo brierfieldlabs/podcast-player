@@ -2050,10 +2050,15 @@ open class PlaybackManager @Inject constructor(
         playbackStateRelay.accept(playbackState.copy(chapters = selectedChapters))
         observeChaptersSkipping?.cancel()
         observeChaptersSkipping = playbackStateRelay.asFlow()
-            .map { it.positionMs.milliseconds }
-            .onEach { position ->
+            .map { state ->
+                val position = state.positionMs.milliseconds
+                selectedChapters.firstOrNull { position in it }
+            }
+            // Only one seek for each entry into a skipped chapter. Repeated
+            // position ticks while a seek is pending must not skip twice.
+            .distinctUntilChanged()
+            .onEach { currentChapter ->
                 if (getCurrentEpisode()?.uuid != episodeUuid) return@onEach
-                val currentChapter = selectedChapters.firstOrNull { position in it }
                 if (currentChapter?.selected == false) {
                     skipToNextSelectedOrLastChapter()
                 }
