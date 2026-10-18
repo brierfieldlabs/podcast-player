@@ -37,6 +37,7 @@
     <string name="podcast_player_skip_matching_chapters">Skip chapters with matching titles</string>
     <string name="podcast_player_skip_matching_chapters_hint">Chapter title words or phrases, separated by commas</string>
     <string name="podcast_player_skip_matching_chapters_explanation">Optional per-podcast chapter skipping. Enter chapter title words or phrases separated by commas. Matching chapters will be skipped during playback, including future episodes. Applies only in Podcast Player on Android; leave blank to disable.</string>
+    <string name="podcast_player_auto_download_global_off">Global automatic downloads are off. This podcast preference is saved but will take effect only when global automatic downloads are enabled.</string>
     <string name="podcast_player_excluded_titles">Automatically dismiss matching episode titles</string>
     <string name="podcast_player_excluded_titles_hint">Title words or phrases, separated by commas</string>
     <string name="podcast_player_excluded_titles_explanation">Matching NEW episodes will be dismissed automatically before queueing or downloading. Existing episodes are unchanged. They are not marked played and can be restored using Show dismissed.</string>

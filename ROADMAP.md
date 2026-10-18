@@ -41,7 +41,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - Podcast-specific download, cleanup and playback overrides. Existing settings
   already include new-episode downloads, speed, volume boost, silence removal,
   introduction/outro skipping and auto-dismissal; review missing overrides in
-  [#11](../../issues/11).
+  [#11](../../issues/11). The per-podcast new-episode download switch now
+  reports its own saved state independently of the global preference and explains
+  when global automatic downloads are disabled.
 - **Rolling oldest-first offline downloads (source implemented, unverified):**
   per-podcast 0-10 unfinished episodes, off by default, refill on completion,
   feed refresh and manual dismissal. Existing downloaded/pending episodes count against the limit;

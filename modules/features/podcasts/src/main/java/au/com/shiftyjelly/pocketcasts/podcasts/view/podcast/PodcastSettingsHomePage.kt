@@ -113,15 +113,19 @@ internal fun PodcastSettingsHomePage(
         )
         SettingRow(
             primaryText = stringResource(LR.string.podcast_settings_auto_download),
-            secondaryText = stringResource(LR.string.podcast_settings_auto_download_summary),
+            secondaryText = if (uiState.isGlobalAutoDownloadEnabled) {
+                stringResource(LR.string.podcast_settings_auto_download_summary)
+            } else {
+                stringResource(LR.string.podcast_player_auto_download_global_off)
+            },
             icon = painterResource(IR.drawable.ic_download),
             iconTint = iconTint,
             toggle = SettingRowToggle.Switch(
-                checked = uiState.isGlobalAutoDownloadEnabled && podcast.isAutoDownloadNewEpisodes,
+                checked = podcast.isAutoDownloadNewEpisodes,
                 enabled = true,
             ),
             modifier = Modifier.toggleable(
-                value = uiState.isGlobalAutoDownloadEnabled && podcast.isAutoDownloadNewEpisodes,
+                value = podcast.isAutoDownloadNewEpisodes,
                 role = Role.Switch,
                 onValueChange = onChangeAutoDownload,
             ),
