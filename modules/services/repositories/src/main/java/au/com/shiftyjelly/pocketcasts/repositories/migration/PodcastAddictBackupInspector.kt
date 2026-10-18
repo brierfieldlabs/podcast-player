@@ -26,11 +26,15 @@ class PodcastAddictBackupInspector @Inject constructor(
         data class Readable(
             val podcastCount: Int,
             val feedCount: Int,
+            val subscribedFeedCount: Int,
             val episodeCount: Int,
             val episodesWithResumePosition: Int,
             val episodesWithPlaybackDate: Int,
             val listeningHistoryCount: Int,
             val completedHistoryCount: Int,
+            val localSubscribedFeedCount: Int,
+            val exactMatchedLocalFeeds: Int,
+            val ambiguousFeedMatches: Int,
         ) : Result
 
         data class Rejected(val reason: Reason) : Result
@@ -44,7 +48,10 @@ class PodcastAddictBackupInspector @Inject constructor(
         MissingFeedUrls,
     }
 
-    suspend fun inspect(backupUri: Uri): Result = withContext(Dispatchers.IO) {
+    suspend fun inspect(
+        backupUri: Uri,
+        localSubscribedFeedUrls: Set<String> = emptySet(),
+    ): Result = withContext(Dispatchers.IO) {
         val temp = try {
             File.createTempFile("podcast-addict-preview-", ".db", context.cacheDir)
         } catch (_: IOException) {
@@ -55,8 +62,12 @@ class PodcastAddictBackupInspector @Inject constructor(
             if (copyResult != null) return@withContext Result.Rejected(copyResult)
 
             SQLiteDatabase.openDatabase(temp.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
-                val podcasts = scanFeedCounts(database)
-                if (podcasts.second == 0) return@withContext Result.Rejected(Reason.MissingFeedUrls)
+                val subscribedFeeds = localSubscribedFeedUrls
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+                val podcasts = scanFeedCounts(database, subscribedFeeds)
+                if (podcasts.feedCount == 0) return@withContext Result.Rejected(Reason.MissingFeedUrls)
 
                 var episodeCount = 0
                 var resumeCount = 0
@@ -85,13 +96,17 @@ class PodcastAddictBackupInspector @Inject constructor(
                 }
 
                 Result.Readable(
-                    podcastCount = podcasts.first,
-                    feedCount = podcasts.second,
+                    podcastCount = podcasts.podcastCount,
+                    feedCount = podcasts.feedCount,
+                    subscribedFeedCount = podcasts.subscribedFeedCount,
                     episodeCount = episodeCount,
                     episodesWithResumePosition = resumeCount,
                     episodesWithPlaybackDate = playbackDateCount,
                     listeningHistoryCount = historyCount,
                     completedHistoryCount = completedCount,
+                    localSubscribedFeedCount = subscribedFeeds.size,
+                    exactMatchedLocalFeeds = podcasts.exactMatches,
+                    ambiguousFeedMatches = podcasts.ambiguousMatches,
                 )
             }
         } catch (_: SQLiteException) {
@@ -105,16 +120,45 @@ class PodcastAddictBackupInspector @Inject constructor(
         }
     }
 
-    private fun scanFeedCounts(database: SQLiteDatabase): Pair<Int, Int> {
+    private data class FeedCounts(
+        val podcastCount: Int,
+        val feedCount: Int,
+        val subscribedFeedCount: Int,
+        val exactMatches: Int,
+        val ambiguousMatches: Int,
+    )
+
+    /** Exact RSS URL comparisons only. Never infer matches from podcast titles. */
+    private fun scanFeedCounts(
+        database: SQLiteDatabase,
+        localFeeds: Set<String>,
+    ): FeedCounts {
         var podcasts = 0
         var feeds = 0
+        var subscribedFeeds = 0
+        val matchOccurrences = mutableMapOf<String, Int>()
         database.rawQuery("SELECT feed_url, subscribed_status FROM podcasts NOT INDEXED", null).use { rows ->
             while (rows.moveToNext()) {
                 podcasts++
-                if (!rows.isNull(0) && rows.getString(0).isNotBlank()) feeds++
+                if (!rows.isNull(0)) {
+                    val url = rows.getString(0).trim()
+                    if (url.isNotEmpty()) {
+                        feeds++
+                        if (!rows.isNull(1) && rows.getInt(1) == 1) {
+                            subscribedFeeds++
+                            if (url in localFeeds) matchOccurrences[url] = (matchOccurrences[url] ?: 0) + 1
+                        }
+                    }
+                }
             }
         }
-        return podcasts to feeds
+        return FeedCounts(
+            podcastCount = podcasts,
+            feedCount = feeds,
+            subscribedFeedCount = subscribedFeeds,
+            exactMatches = matchOccurrences.count { (_, occurrences) -> occurrences == 1 },
+            ambiguousMatches = matchOccurrences.count { (_, occurrences) -> occurrences > 1 },
+        )
     }
 
     /** Extract only the expected SQLite entry, never ZIP-supplied paths. */

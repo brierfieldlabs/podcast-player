@@ -112,8 +112,14 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   considered. A new **read-only backup inspector** now checks the mandatory
   feed, episode and listening-history tables and rejects unreadable backups
   without touching the user's database or syncing anything. The inspector is
-  source-only, not yet exposed in the app UI; matching, preview and confirmed
-  migration remain outstanding. [#17](../../issues/17)
+  source-only with a **read-only Import & Export preview interface** now
+  implemented (uncompiled). The newer 2026-10-18 manually created backup
+  passed ZIP integrity and full SQLite integrity checks, including all four
+  relevant table scans, but should still be treated as a private reference.
+  The preview compares exact RSS feed URLs to currently subscribed feeds and
+  reports ambiguous matches and source counts, without changing data.
+  Episode-level matching and an explicitly approved restore remain outstanding.
+  [#17](../../issues/17)
 - **Kitchen Hub later:** existing Pocket Casts web player first, with
   supported sign-in and sync. No new web app/server without approval.
   [#18](../../issues/18)

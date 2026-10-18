@@ -85,7 +85,7 @@ import javax.inject.Inject
 import timber.log.Timber
 import au.com.shiftyjelly.pocketcasts.images.R as IR
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
-import au.com.shiftyjelly.pocketcasts.settings.BuildConfig as PodcastGptBuildConfig
+import au.com.shiftyjelly.pocketcasts.settings.BuildConfig as PodcastPlayerBuildConfig
 import au.com.shiftyjelly.pocketcasts.ui.R as UR
 
 @AndroidEntryPoint
@@ -260,8 +260,8 @@ private fun AboutPage(
             item {
                 Text(
                     text = stringResource(
-                        LR.string.podcastgpt_version,
-                        PodcastGptBuildConfig.PODCASTGPT_VERSION,
+                        LR.string.podcast_player_version,
+                        PodcastPlayerBuildConfig.PODCAST_PLAYER_VERSION,
                         BuildConfig.VERSION_NAME,
                         BuildConfig.VERSION_CODE.toString(),
                     ),

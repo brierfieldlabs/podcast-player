@@ -1,6 +1,8 @@
 package au.com.shiftyjelly.pocketcasts.settings
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.net.Uri
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -15,6 +17,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
 import au.com.shiftyjelly.pocketcasts.repositories.opml.OpmlImportTask
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
@@ -28,7 +31,9 @@ import au.com.shiftyjelly.pocketcasts.views.helper.OpmlExporter
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
 
@@ -40,6 +45,8 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
     @Inject lateinit var settings: Settings
 
     @Inject lateinit var podcastManager: PodcastManager
+
+    @Inject lateinit var podcastAddictInspector: PodcastAddictBackupInspector
 
     @Inject lateinit var theme: Theme
 
@@ -57,6 +64,10 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
             val data = result.data?.data ?: return@registerForActivityResult
             OpmlImportTask.run(data, activity)
         }
+    }
+
+    private val podcastAddictBackupPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && view != null) showPodcastAddictPreview(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,6 +97,11 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("importPodcasts")?.setOnPreferenceClickListener {
             showOpmlFilePicker()
             viewModel.onImportSelectFile()
+            true
+        }
+
+        findPreference<Preference>("previewPodcastAddictBackup")?.setOnPreferenceClickListener {
+            podcastAddictBackupPicker.launch(arrayOf("*/*"))
             true
         }
 
@@ -133,6 +149,64 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                 saveFile()
             }
             true
+        }
+    }
+
+    private fun showPodcastAddictPreview(uri: Uri) {
+        val progress = AlertDialog.Builder(requireContext())
+            .setTitle(LR.string.podcast_player_backup_preview_title)
+            .setMessage(LR.string.podcast_player_backup_preview_busy)
+            .setCancelable(false)
+            .create()
+        progress.show()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = try {
+                val subscribedFeeds = withContext(Dispatchers.IO) {
+                    podcastManager.findSubscribedNoOrder()
+                        .mapNotNull { it.podcastUrl }
+                        .toSet()
+                }
+                podcastAddictInspector.inspect(uri, subscribedFeeds)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Invalid provider data or unavailable local subscriptions must
+                // never crash Settings or start a fallback import.
+                PodcastAddictBackupInspector.Result.Rejected(
+                    PodcastAddictBackupInspector.Reason.CannotOpenBackup,
+                )
+            } finally {
+                progress.dismiss()
+            }
+            if (!isAdded) return@launch
+            val message = when (result) {
+                is PodcastAddictBackupInspector.Result.Readable -> {
+                    getString(
+                        LR.string.podcast_player_backup_preview_results,
+                        result.podcastCount,
+                        result.subscribedFeedCount,
+                        result.episodeCount,
+                        result.listeningHistoryCount,
+                        result.episodesWithResumePosition,
+                        result.localSubscribedFeedCount,
+                        result.exactMatchedLocalFeeds,
+                        result.ambiguousFeedMatches,
+                    ) + "\n\n" + getString(LR.string.podcast_player_backup_preview_disclaimer)
+                }
+                is PodcastAddictBackupInspector.Result.Rejected -> when (result.reason) {
+                    PodcastAddictBackupInspector.Reason.MissingFeedUrls ->
+                        getString(LR.string.podcast_player_backup_preview_no_feeds)
+                    PodcastAddictBackupInspector.Reason.BackupTooLarge ->
+                        getString(LR.string.podcast_player_backup_preview_too_large)
+                    else -> getString(LR.string.podcast_player_backup_preview_rejected)
+                }
+            }
+            AlertDialog.Builder(requireContext())
+                .setTitle(LR.string.podcast_player_backup_preview_title)
+                .setMessage(message)
+                .setPositiveButton(LR.string.done, null)
+                .show()
         }
     }
 
