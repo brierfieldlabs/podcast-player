@@ -33,6 +33,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkEpisodeResol
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkPlaybackTimeResolver
 import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
+import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
 import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
@@ -112,6 +113,7 @@ class PodcastViewModel @Inject constructor(
     private val theme: Theme,
     private val castManager: CastManager,
     private val downloadQueue: DownloadQueue,
+    private val autoDownloadEpisodeProvider: AutoDownloadEpisodeProvider,
     private val userManager: UserManager,
     private val eventHorizon: EventHorizon,
     private val bookmarkManager: BookmarkManager,
@@ -458,6 +460,20 @@ class PodcastViewModel @Inject constructor(
         withContext(Dispatchers.IO) {
             if (dismissed && !episode.isArchived) {
                 episodeManager.archiveBlocking(episode, playbackManager)
+                // An opt-in rolling download collection should recover its
+                // oldest unfinished slot after manual dismissal as well as
+                // after playback completion. This never deletes existing files.
+                applicationScope.launch(Dispatchers.IO) {
+                    val podcast = podcastManager.findPodcastByUuid(episode.podcastUuid) ?: return@launch
+                    val next = autoDownloadEpisodeProvider.getRollingEpisodes(podcast)
+                    if (next.isNotEmpty()) {
+                        downloadQueue.enqueueAll(
+                            next,
+                            DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                            SourceView.AUTO_DOWNLOAD,
+                        )
+                    }
+                }
             } else if (!dismissed && episode.isArchived) {
                 episodeManager.unarchiveBlocking(episode)
                 episode.isArchived = false

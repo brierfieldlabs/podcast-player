@@ -41,8 +41,8 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   introduction/outro skipping and auto-dismissal; review missing overrides in
   [#11](../../issues/11).
 - **Rolling oldest-first offline downloads (source implemented, unverified):**
-  per-podcast 0-10 unfinished episodes, off by default, refill on completion and
-  feed refresh. Existing downloaded/pending episodes count against the limit;
+  per-podcast 0-10 unfinished episodes, off by default, refill on completion,
+  feed refresh and manual dismissal. Existing downloaded/pending episodes count against the limit;
   extras are never automatically deleted to enforce a smaller limit. Newer
   downloaded episodes cannot displace the oldest unfinished download slots.
   Download failures or non-downloadable episodes do not occupy the rolling
