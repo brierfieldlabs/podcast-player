@@ -106,7 +106,14 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   privately held read-only format sample, **not** migration authority.
   On migration day use a fresh backup, a preview of safely matched episodes,
   and user confirmation before modifying listening history or syncing to web.
-  The sample's SQLite indexes had integrity warnings. [#17](../../issues/17)
+  The sample's ZIP is readable but the podcast-subscription table fails a
+  read-only SQLite scan. The episode played-status field alone is insufficient
+  to reconstruct history; listening-history and playback-date fields must be
+  considered. A new **read-only backup inspector** now checks the mandatory
+  feed, episode and listening-history tables and rejects unreadable backups
+  without touching the user's database or syncing anything. The inspector is
+  source-only, not yet exposed in the app UI; matching, preview and confirmed
+  migration remain outstanding. [#17](../../issues/17)
 - **Kitchen Hub later:** existing Pocket Casts web player first, with
   supported sign-in and sync. No new web app/server without approval.
   [#18](../../issues/18)
