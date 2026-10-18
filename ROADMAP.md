@@ -109,6 +109,16 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   episodes change and checks the active episode again before applying a seek,
   so a late update cannot advance the next episode. Playback seeks happen only
   on entering a skipped chapter, not on every position update. [#13](../../issues/13)
+- **Podcast grid performance (source improvement, phone verification pending):**
+  grid refreshes reuse the current RecyclerView layout manager when its type
+  and column count have not changed, preserving the scroll position rather
+  than rebuilding the entire list. One bottom-inset collector is scoped to
+  each view lifecycle instead of adding another one on every refresh. Badge
+  display changes update badge holders without reloading podcast artwork.
+  Recycled artwork callbacks cannot alter a holder now bound to another
+  podcast. The Podcasts module has passed focused Kotlin compilation with
+  these changes. Validate actual scrolling and startup on a physical phone
+  before claiming the jank is resolved. [#22](../../issues/22)
 - UK English and Podcast Addict-familiar wording without changing Pocket Casts
   protocol fields or falsely relabelling deletion. [#16](../../issues/16)
 - Purple app icon, the name **Podcast Player**, reviewable upstream updates.

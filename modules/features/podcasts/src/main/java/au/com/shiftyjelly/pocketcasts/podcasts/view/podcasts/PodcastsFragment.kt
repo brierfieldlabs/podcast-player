@@ -165,6 +165,8 @@ class PodcastsFragment :
     private var lastOrientationRefreshed = LAST_ORIENTATION_NOT_SET
     private var lastWidthPx: Int = 0
     private var listState: Parcelable? = null
+    private var displayedGridLayout: PodcastGridLayoutType? = null
+    private var latestBottomInset = 0
 
     private val folderUuid: String?
         get() = arguments?.getString(ARG_FOLDER_UUID)
@@ -274,6 +276,15 @@ class PodcastsFragment :
 
         setupEmptyStateView()
 
+        // One collector per view lifecycle. Previously every grid refresh
+        // launched another long-lived inset collector.
+        viewLifecycleOwner.lifecycleScope.launch {
+            settings.bottomInset.collect { inset ->
+                latestBottomInset = inset
+                updateGridPadding()
+            }
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.layoutChangedFlow.collect {
@@ -285,7 +296,7 @@ class PodcastsFragment :
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.podcastUuidToBadge.collect { podcastUuidToBadge ->
-                    folderAdapter?.badgeType = settings.podcastBadgeType.value
+                    folderAdapter?.setBadgeType(settings.podcastBadgeType.value)
                     folderAdapter?.setBadges(podcastUuidToBadge)
                 }
             }
@@ -333,6 +344,7 @@ class PodcastsFragment :
     override fun onDestroyView() {
         listState = binding.recyclerView.layoutManager?.onSaveInstanceState()
         binding.recyclerView.adapter = null
+        displayedGridLayout = null
         super.onDestroyView()
         realBinding = null
     }
@@ -519,37 +531,61 @@ class PodcastsFragment :
         }
     }
 
+    private fun updateGridPadding() {
+        val recyclerView = realBinding?.recyclerView ?: return
+        val padding = when (settings.podcastGridLayout.value) {
+            PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> 0
+            PodcastGridLayoutType.LIST_VIEW -> resources.getDimensionPixelSize(VR.dimen.list_outer_adding)
+        }
+        recyclerView.updatePadding(padding, padding, padding, padding + latestBottomInset)
+    }
+
     private fun setupGridView(savedInstanceState: Parcelable? = listState) {
-        val layoutManager = when (settings.podcastGridLayout.value) {
-            PodcastGridLayoutType.LARGE_ARTWORK -> createGridLayoutManager(UiUtil.getGridColumnCount(false, context))
-            PodcastGridLayoutType.SMALL_ARTWORK -> createGridLayoutManager(UiUtil.getGridColumnCount(true, context))
-            PodcastGridLayoutType.LIST_VIEW -> LinearLayoutManager(activity, RecyclerView.VERTICAL, false)
+        val recyclerView = realBinding?.recyclerView ?: return
+        val newLayout = settings.podcastGridLayout.value
+        val currentManager = recyclerView.layoutManager
+        val gridColumns = when (newLayout) {
+            PodcastGridLayoutType.LARGE_ARTWORK -> UiUtil.getGridColumnCount(false, context)
+            PodcastGridLayoutType.SMALL_ARTWORK -> UiUtil.getGridColumnCount(true, context)
+            PodcastGridLayoutType.LIST_VIEW -> null
         }
-        val badgeType = settings.podcastBadgeType.value
-        val currentLayoutManager = realBinding?.recyclerView?.layoutManager
-
-        // We only want to reset the adapter if something actually changed, or else it will flash
-        if (folderAdapter?.badgeType != badgeType ||
-            (currentLayoutManager != null && currentLayoutManager::class.java != layoutManager::class.java) ||
-            (currentLayoutManager is GridLayoutManager && layoutManager is GridLayoutManager && currentLayoutManager.spanCount != layoutManager.spanCount)
-        ) {
-            folderAdapter?.badgeType = badgeType
-            realBinding?.recyclerView?.adapter = adapter
+        val managerMatches = if (gridColumns != null) {
+            currentManager is GridLayoutManager && currentManager.spanCount == gridColumns
+        } else {
+            currentManager is LinearLayoutManager && currentManager !is GridLayoutManager
         }
 
-        val listOuterPadding = resources.getDimensionPixelSize(VR.dimen.list_outer_adding)
-        viewLifecycleOwner.lifecycleScope.launch {
-            settings.bottomInset.collect {
-                val padding = when (settings.podcastGridLayout.value) {
-                    PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> 0
-                    PodcastGridLayoutType.LIST_VIEW -> listOuterPadding
-                }
-                realBinding?.recyclerView?.updatePadding(padding, padding, padding, padding + it)
+        folderAdapter?.setBadgeType(settings.podcastBadgeType.value)
+        val firstVisible = (currentManager as? LinearLayoutManager)?.findFirstVisibleItemPosition()
+
+        // Only a real layout-style switch requires new holders; the grid and
+        // list have different XML layouts. Badge changes do not.
+        val styleChanged = displayedGridLayout != null && displayedGridLayout != newLayout
+        if (styleChanged) {
+            recyclerView.adapter = null
+            recyclerView.recycledViewPool.clear()
+            recyclerView.adapter = adapter
+        }
+        displayedGridLayout = newLayout
+
+        if (!managerMatches) {
+            val newManager = if (gridColumns != null) {
+                createGridLayoutManager(gridColumns)
+            } else {
+                LinearLayoutManager(activity, RecyclerView.VERTICAL, false)
             }
+            recyclerView.layoutManager = newManager
+            if (currentManager == null) {
+                newManager.onRestoreInstanceState(savedInstanceState)
+            } else if (firstVisible != null && firstVisible != RecyclerView.NO_POSITION) {
+                newManager.scrollToPositionWithOffset(firstVisible, 0)
+            }
+        } else if (styleChanged && firstVisible != null && firstVisible != RecyclerView.NO_POSITION) {
+            // Switching large/small artwork at the same column count still
+            // replaces holders; keep the user's current position.
+            currentManager.scrollToPositionWithOffset(firstVisible, 0)
         }
-
-        realBinding?.recyclerView?.layoutManager = layoutManager
-        layoutManager.onRestoreInstanceState(savedInstanceState)
+        updateGridPadding()
     }
 
     private fun createGridLayoutManager(spanCount: Int) = GridLayoutManager(requireActivity(), spanCount)
