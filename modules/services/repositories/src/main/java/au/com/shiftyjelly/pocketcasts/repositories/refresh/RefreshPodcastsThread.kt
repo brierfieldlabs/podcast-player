@@ -242,7 +242,14 @@ class RefreshPodcastsThread(
             val episodes = runBlocking {
                 autoDownloadProvider.getAll(addedEpisodes.episodeUuidsAdded)
             }
-            downloadQueue.enqueueAll(episodes, DownloadType.Automatic(bypassAutoDownloadStatus = false), SourceView.AUTO_DOWNLOAD)
+            // A playlist or Up Next snapshot may still contain an episode
+            // dismissed by the title rule earlier in this refresh. Never
+            // enqueue that episode even when the snapshot has become stale.
+            downloadQueue.enqueueAll(
+                episodes - dismissedNewEpisodes,
+                DownloadType.Automatic(bypassAutoDownloadStatus = false),
+                SourceView.AUTO_DOWNLOAD,
+            )
             // Rolling downloads are independently enabled for selected podcasts.
             // Re-evaluate on every refresh, not just when the feed has new items.
             val rolling = runBlocking { autoDownloadProvider.getAllRollingEpisodes() }

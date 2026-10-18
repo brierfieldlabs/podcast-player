@@ -57,9 +57,10 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   comma-separated words or phrases automatically dismisses matching **new**
   feed episodes before queueing/downloading. Existing episodes aren't bulk
   dismissed when the setting changes. This does not mark episodes played;
-  restoring a dismissed episode remains possible. The exclusion rules are
-  device-local; the resulting dismissal uses existing Pocket Casts episode sync.
-  [#15](../../issues/15)
+  restoring a dismissed episode remains possible. The final automatic download
+  queue also explicitly excludes newly dismissed items, even when a playlist
+  snapshot is stale. The exclusion rules are device-local; resulting dismissal
+  uses existing Pocket Casts episode sync. [#15](../../issues/15)
 - **Three-band equaliser and mono (source implemented, unverified):** Android
   Playback Effects now exposes device-local Bass, Midrange and Treble sliders
   (-6 to +6 dB, flat by default) and a Mono audio switch (off by default).
