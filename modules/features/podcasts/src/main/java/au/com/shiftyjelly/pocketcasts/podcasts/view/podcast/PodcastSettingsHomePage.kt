@@ -69,6 +69,7 @@ internal fun PodcastSettingsHomePage(
     onDecrementRollingDownloadLimit: () -> Unit,
     onIncrementRollingDownloadLimit: () -> Unit,
     onChangeExcludedTitleTerms: (String) -> Unit,
+    onChangeSkippedChapterTerms: (String) -> Unit,
     onChangeAddToUpNext: (Boolean) -> Unit,
     onChangeUpNextPosition: () -> Unit,
     onChangeUpNextGlobalSettings: () -> Unit,
@@ -85,7 +86,7 @@ internal fun PodcastSettingsHomePage(
     modifier: Modifier = Modifier,
 ) {
     val podcast = uiState.podcast
-    var editingExclusions by remember { mutableStateOf(false) }
+    var editingKeywordSetting by remember { mutableStateOf<PodcastKeywordSetting?>(null) }
     var editedTerms by remember { mutableStateOf("") }
     Column(
         modifier = modifier
@@ -153,7 +154,17 @@ internal fun PodcastSettingsHomePage(
             iconTint = iconTint,
             modifier = Modifier.clickable(role = Role.Button) {
                 editedTerms = uiState.excludedTitleTerms
-                editingExclusions = true
+                editingKeywordSetting = PodcastKeywordSetting.EpisodeTitles
+            },
+        )
+        SettingRow(
+            primaryText = stringResource(LR.string.podcast_player_skip_matching_chapters),
+            secondaryText = uiState.skippedChapterTerms.ifBlank { stringResource(LR.string.off) },
+            icon = painterResource(IR.drawable.ic_skip_next),
+            iconTint = iconTint,
+            modifier = Modifier.clickable(role = Role.Button) {
+                editedTerms = uiState.skippedChapterTerms
+                editingKeywordSetting = PodcastKeywordSetting.ChapterTitles
             },
         )
         SettingRow(
@@ -351,36 +362,66 @@ internal fun PodcastSettingsHomePage(
         }
     }
 
-    if (editingExclusions) {
+    val activeKeywordSetting = editingKeywordSetting
+    if (activeKeywordSetting != null) {
+        val isChapterRule = activeKeywordSetting == PodcastKeywordSetting.ChapterTitles
         AlertDialog(
-            onDismissRequest = { editingExclusions = false },
-            title = { Text(stringResource(LR.string.podcast_player_excluded_titles)) },
+            onDismissRequest = { editingKeywordSetting = null },
+            title = {
+                Text(
+                    stringResource(
+                        if (isChapterRule) LR.string.podcast_player_skip_matching_chapters
+                        else LR.string.podcast_player_excluded_titles,
+                    ),
+                )
+            },
             text = {
                 Column {
-                    Text(stringResource(LR.string.podcast_player_excluded_titles_explanation))
+                    Text(
+                        stringResource(
+                            if (isChapterRule) LR.string.podcast_player_skip_matching_chapters_explanation
+                            else LR.string.podcast_player_excluded_titles_explanation,
+                        ),
+                    )
                     OutlinedTextField(
                         value = editedTerms,
                         onValueChange = { editedTerms = it },
-                        label = { Text(stringResource(LR.string.podcast_player_excluded_titles_hint)) },
+                        label = {
+                            Text(
+                                stringResource(
+                                    if (isChapterRule) LR.string.podcast_player_skip_matching_chapters_hint
+                                    else LR.string.podcast_player_excluded_titles_hint,
+                                ),
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    onChangeExcludedTitleTerms(editedTerms)
-                    editingExclusions = false
+                    if (isChapterRule) {
+                        onChangeSkippedChapterTerms(editedTerms)
+                    } else {
+                        onChangeExcludedTitleTerms(editedTerms)
+                    }
+                    editingKeywordSetting = null
                 }) {
                     Text(stringResource(LR.string.done))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { editingExclusions = false }) {
+                TextButton(onClick = { editingKeywordSetting = null }) {
                     Text(stringResource(LR.string.cancel))
                 }
             },
         )
     }
+}
+
+private enum class PodcastKeywordSetting {
+    EpisodeTitles,
+    ChapterTitles,
 }
 
 @Preview
@@ -421,6 +462,7 @@ private fun PodcastSettingsHomePagePreview(
             onDecrementRollingDownloadLimit = {},
             onIncrementRollingDownloadLimit = {},
             onChangeExcludedTitleTerms = {},
+            onChangeSkippedChapterTerms = {},
             onChangeAddToUpNext = {},
             onChangeUpNextPosition = {},
             onChangeUpNextGlobalSettings = {},

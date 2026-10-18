@@ -128,6 +128,7 @@ class PodcastsFragment :
         private const val MENU_SHARE = 6
         private const val MENU_UNSUBSCRIBE = 7
         private const val MENU_PLAY_ALL_UNFINISHED = 8
+        private const val MENU_DOWNLOAD_ALL = 9
         const val ARG_FOLDER_UUID = "ARG_FOLDER_UUID"
 
         fun newInstance(folderUuid: String): PodcastsFragment {
@@ -566,11 +567,12 @@ class PodcastsFragment :
             add(0, MENU_PLAY_ALL_UNFINISHED, 0, getString(LR.string.podcast_player_play_visible_unfinished))
             add(0, MENU_QUEUE_UNFINISHED, 1, getString(LR.string.podcastgpt_queue_unfinished))
             add(0, MENU_PLAY_OLDEST, 2, getString(LR.string.podcastgpt_play_oldest))
-            add(0, MENU_DOWNLOAD_UNFINISHED, 2, getString(LR.string.podcastgpt_download_unfinished))
-            add(0, MENU_MARK_ALL_PLAYED, 3, getString(LR.string.podcastgpt_mark_all_played))
-            add(0, MENU_PODCAST_SETTINGS, 4, getString(LR.string.podcast_settings))
-            add(0, MENU_SHARE, 5, getString(LR.string.share))
-            add(0, MENU_UNSUBSCRIBE, 6, getString(LR.string.podcastgpt_unsubscribe))
+            add(0, MENU_DOWNLOAD_UNFINISHED, 3, getString(LR.string.podcastgpt_download_unfinished))
+            add(0, MENU_DOWNLOAD_ALL, 4, getString(LR.string.podcast_download_all))
+            add(0, MENU_MARK_ALL_PLAYED, 5, getString(LR.string.podcastgpt_mark_all_played))
+            add(0, MENU_PODCAST_SETTINGS, 6, getString(LR.string.podcast_settings))
+            add(0, MENU_SHARE, 7, getString(LR.string.share))
+            add(0, MENU_UNSUBSCRIBE, 8, getString(LR.string.podcastgpt_unsubscribe))
         }
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -603,6 +605,25 @@ class PodcastsFragment :
                         ConfirmationDialog.downloadWarningDialog(episodes.size, resources) {
                             viewModel.downloadUnfinished(episodes)
                         }?.show(parentFragmentManager, "podcastgpt_download_unfinished")
+                    }
+                }
+
+                MENU_DOWNLOAD_ALL -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.episodesForOffline(podcast)
+                    if (episodes.isEmpty()) {
+                        showSnackBar(getString(LR.string.podcast_player_download_all_nothing))
+                    } else {
+                        ConfirmationDialog()
+                            .setTitle(getString(LR.string.podcast_player_download_all_title))
+                            .setSummary(getString(LR.string.podcast_player_download_all_warning, episodes.size))
+                            .setIconId(IR.drawable.ic_download)
+                            .setButtonType(
+                                ConfirmationDialog.ButtonType.Normal(
+                                    getString(LR.string.download_warning_button, episodes.size),
+                                ),
+                            )
+                            .setOnConfirm { viewModel.downloadAllForOffline(episodes) }
+                            .show(parentFragmentManager, "podcast_player_download_all")
                     }
                 }
 

@@ -92,6 +92,7 @@ class PodcastSettingsFragment :
                 onDecrementRollingDownloadLimit = { viewModel.changeRollingDownloadLimit(-1) },
                 onIncrementRollingDownloadLimit = { viewModel.changeRollingDownloadLimit(1) },
                 onChangeExcludedTitleTerms = viewModel::changeExcludedTitleTerms,
+                onChangeSkippedChapterTerms = viewModel::changeSkippedChapterTerms,
                 onChangeAddToUpNext = viewModel::changeAddToUpNext,
                 onChangeUpNextPosition = ::showUpNextPositionDialog,
                 onChangeUpNextGlobalSettings = ::goToAutoAddSettings,

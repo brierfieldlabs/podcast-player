@@ -74,6 +74,7 @@ class PodcastSettingsViewModel @AssistedInject constructor(
     private val playlistsFlow = MutableStateFlow<List<SmartPlaylistPreview>?>(null)
     private val rollingDownloadLimit = MutableStateFlow(rollingPreferences.rollingLimit(podcastUuid))
     private val excludedTitleTerms = MutableStateFlow(rollingPreferences.excludedTitles(podcastUuid))
+    private val skippedChapterTerms = MutableStateFlow(rollingPreferences.skippedChapterTitles(podcastUuid))
 
     init {
         viewModelScope.launch {
@@ -107,7 +108,10 @@ class PodcastSettingsViewModel @AssistedInject constructor(
             }
         },
         excludedTitleTerms,
-    ) { state, excluded -> state?.copy(excludedTitleTerms = excluded) }
+        skippedChapterTerms,
+    ) { state, excluded, skipped ->
+        state?.copy(excludedTitleTerms = excluded, skippedChapterTerms = skipped)
+    }
         .stateIn(viewModelScope, started = SharingStarted.Eagerly, initialValue = null)
 
     fun getArtworkUuidsFlow(playlistUuid: String): StateFlow<List<String>?> {
@@ -146,6 +150,10 @@ class PodcastSettingsViewModel @AssistedInject constructor(
 
     fun changeExcludedTitleTerms(value: String) {
         excludedTitleTerms.value = rollingPreferences.setExcludedTitles(podcastUuid, value)
+    }
+
+    fun changeSkippedChapterTerms(value: String) {
+        skippedChapterTerms.value = rollingPreferences.setSkippedChapterTitles(podcastUuid, value)
     }
 
     fun changeRollingDownloadLimit(delta: Int) {
@@ -480,6 +488,7 @@ class PodcastSettingsViewModel @AssistedInject constructor(
         val isGlobalAutoDownloadEnabled: Boolean,
         val rollingDownloadLimit: Int = 0,
         val excludedTitleTerms: String = "",
+        val skippedChapterTerms: String = "",
     ) {
         val selectedPlaylists = playlists
             .filter { playlist ->

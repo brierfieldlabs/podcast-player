@@ -34,6 +34,15 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   existing automatic-download Wi-Fi, charging and storage preferences. This
   preference is **device-local**, not part of Pocket Casts web sync.
   [#14](../../issues/14)
+- **Download all from a podcast tile (source implemented, unverified):**
+  long-press a podcast tile, choose **Download all**, review a confirmation
+  containing the actual eligible episode count, and queue everything for
+  offline listening. Includes previously played episodes, but excludes
+  dismissed, downloaded, already queued, failed and stream-only episodes.
+  Unlike the existing **Download unfinished** bulk action, this does not
+  silently cap its selection at 100. It uses native automatic-download
+  Wi-Fi, charging and storage constraints; confirm before travelling that
+  downloads have actually completed. [#21](../../issues/21)
 - **Title exclusions (source implemented, unverified):** a per-podcast list of
   comma-separated words or phrases automatically dismisses matching **new**
   feed episodes before queueing/downloading. Existing episodes aren't bulk
@@ -41,8 +50,16 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   restoring a dismissed episode remains possible. The exclusion rules are
   device-local; the resulting dismissal uses existing Pocket Casts episode sync.
   [#15](../../issues/15)
-- Adjustable equaliser, mono output and recurring chapter-title skipping,
-  subject to compatibility checks. [#12](../../issues/12), [#13](../../issues/13)
+- Adjustable equaliser and mono output remain to be designed around the
+  existing Android audio stack, with Bluetooth and casting behaviour checked
+  before enabling them. [#12](../../issues/12)
+- **Recurring chapter-title skipping (source implemented, unverified):**
+  optional device-local comma-separated chapter title words/phrases per podcast.
+  Matching chapter entries are treated as unselected in the existing playback
+  chapter-skip mechanism, without introducing another media player or cloud
+  service. The underlying episode-specific chapter selection and Pocket Casts
+  protocol remain unchanged. The web player does not inherit these local
+  chapter skip rules. [#13](../../issues/13)
 - UK English and Podcast Addict-familiar wording without changing Pocket Casts
   protocol fields or falsely relabelling deletion. [#16](../../issues/16)
 - Purple app icon, the name **Podcast Player**, reviewable upstream updates.
@@ -77,10 +94,10 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 ## Development order
 
 1. Source-only core playback actions and dismissal; verify the data rules.
-2. Complete per-podcast rolling download and new-title exclusion controls;
-   their first source implementation is committed subject to review.
-3. Audit remaining per-podcast overrides, then playback effects (EQ, mono)
-   and recurring chapter skipping.
+2. Complete per-podcast rolling download, new-title exclusion and tile
+   Download all controls; source implementations await compilation and review.
+3. Verify recurring chapter-title skipping and audit remaining per-podcast
+   overrides, then design playback effects (EQ, mono) conservatively.
 4. Review terminology, icon, performance and remaining requested features.
 5. Confirm source validation, review PRs, then approve a single phone APK.
 6. Only after the player is accepted: design, preview, and separately approve

@@ -47,6 +47,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.di.NotificationPermissionChec
 import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.PodcastPlayerPodcastPreferences
 import au.com.shiftyjelly.pocketcasts.repositories.fingerprint.GeneratedChapterSeeker
 import au.com.shiftyjelly.pocketcasts.repositories.history.upnext.UpNextHistoryManager
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
@@ -161,6 +162,7 @@ open class PlaybackManager @Inject constructor(
     private val playlistManager: PlaylistManager,
     private val downloadQueue: DownloadQueue,
     private val autoDownloadEpisodeProvider: AutoDownloadEpisodeProvider,
+    private val podcastPlayerPreferences: PodcastPlayerPodcastPreferences,
     val upNextQueue: UpNextQueue,
     private val notificationHelper: NotificationHelper,
     private val userEpisodeManager: UserEpisodeManager,
@@ -2011,22 +2013,34 @@ open class PlaybackManager @Inject constructor(
     private fun onEpisodeChanged(episodeUuid: String) {
         observeChaptersJob?.cancel()
         observeChaptersJob = chapterManager.observerChaptersForEpisode(episodeUuid)
-            .onEach { onChaptersAvailable(it) }
+            .onEach { onChaptersAvailable(episodeUuid, it) }
             .launchIn(this)
     }
 
     @Volatile
     private var observeChaptersSkipping: Job? = null
 
-    private fun onChaptersAvailable(chapters: Chapters) {
+    private fun onChaptersAvailable(episodeUuid: String, chapters: Chapters) {
+        val episode = (getCurrentEpisode() as? PodcastEpisode)?.takeIf { it.uuid == episodeUuid }
+        val selectedChapters = if (episode == null) {
+            chapters
+        } else {
+            Chapters(chapters.map { chapter ->
+                if (podcastPlayerPreferences.matchesSkippedChapterTitle(episode.podcastUuid, chapter.title)) {
+                    chapter.copy(selected = false)
+                } else {
+                    chapter
+                }
+            })
+        }
         playbackStateRelay.blockingFirst().let { playbackState ->
-            playbackStateRelay.accept(playbackState.copy(chapters = chapters))
+            playbackStateRelay.accept(playbackState.copy(chapters = selectedChapters))
         }
         observeChaptersSkipping?.cancel()
         observeChaptersSkipping = playbackStateRelay.asFlow()
             .map { it.positionMs.milliseconds }
             .onEach { position ->
-                val currentChapter = chapters.firstOrNull { position in it }
+                val currentChapter = selectedChapters.firstOrNull { position in it }
                 if (currentChapter?.selected == false) {
                     skipToNextSelectedOrLastChapter()
                 }

@@ -322,6 +322,30 @@ class PodcastsViewModel @AssistedInject constructor(
         playbackManager.playEpisodes(episodes.take(settings.getMaxUpNextEpisodes()), SourceView.PODCAST_LIST)
     }
 
+    /**
+     * Every non-dismissed, downloadable episode, including ones already played.
+     * Downloaded, in-flight, failed or HLS-only episodes are not queued again.
+     */
+    suspend fun episodesForOffline(podcast: Podcast): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+            .asSequence()
+            .filterNot { it.isArchived || it.isDownloaded || it.isDownloading || it.isDownloadPending }
+            .filterNot { it.isHlsOnly || it.isDownloadFailure }
+            .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+            .toList()
+    }
+
+    fun downloadAllForOffline(episodes: List<PodcastEpisode>) {
+        if (episodes.isEmpty()) return
+        // Unlike upstream's quick bulk action, this must not silently stop at
+        // 100. Reuse WorkManager's Wi-Fi, power and storage safeguards.
+        downloadQueue.enqueueAll(
+            episodes.map(PodcastEpisode::uuid),
+            DownloadType.Automatic(bypassAutoDownloadStatus = true),
+            SourceView.PODCAST_LIST,
+        )
+    }
+
     fun downloadUnfinished(episodes: List<PodcastEpisode>) {
         val uuids = episodes.take(Settings.MAX_DOWNLOAD).map(PodcastEpisode::uuid)
         downloadQueue.enqueueAll(uuids, DownloadType.UserTriggered(waitForWifi = false), SourceView.PODCAST_LIST)

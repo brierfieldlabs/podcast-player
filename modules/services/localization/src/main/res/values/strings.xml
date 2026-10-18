@@ -34,9 +34,15 @@
     <string name="podcast_player_queue_fewest_first">Queue library: fewest unfinished first</string>
     <string name="podcast_player_queued_count">Added %1$d episodes to Up Next</string>
     <string name="podcast_player_queue_none">No more unfinished episodes to queue</string>
+    <string name="podcast_player_skip_matching_chapters">Skip chapters with matching titles</string>
+    <string name="podcast_player_skip_matching_chapters_hint">Chapter title words or phrases, separated by commas</string>
+    <string name="podcast_player_skip_matching_chapters_explanation">Optional per-podcast chapter skipping. Enter chapter title words or phrases separated by commas. Matching chapters will be skipped during playback, including future episodes. Applies only in Podcast Player on Android; leave blank to disable.</string>
     <string name="podcast_player_excluded_titles">Automatically dismiss matching episode titles</string>
     <string name="podcast_player_excluded_titles_hint">Title words or phrases, separated by commas</string>
     <string name="podcast_player_excluded_titles_explanation">Matching NEW episodes will be dismissed automatically before queueing or downloading. Existing episodes are unchanged. They are not marked played and can be restored using Show dismissed.</string>
+    <string name="podcast_player_download_all_title">Download all available episodes?</string>
+    <string name="podcast_player_download_all_warning">Queue %1$d episodes for offline listening, including previously played episodes. Dismissed, previously downloaded, already queued, failed and stream-only episodes will be excluded. Downloading may take significant storage and time; your Wi-Fi, charging and storage settings apply.</string>
+    <string name="podcast_player_download_all_nothing">All available episodes are already downloaded or queued, dismissed or unavailable for download</string>
     <string name="podcast_player_rolling_downloads">Rolling downloads (oldest first)</string>
     <string name="podcast_player_rolling_downloads_count">Keep up to %1$d unfinished episodes offline. Refill automatically; Wi-Fi, power and storage limits apply. Existing downloads are not deleted.</string>
     <string name="podcast_player_play_from_episode">Play from here (oldest to newest)</string>
