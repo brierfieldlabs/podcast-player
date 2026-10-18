@@ -50,9 +50,15 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   restoring a dismissed episode remains possible. The exclusion rules are
   device-local; the resulting dismissal uses existing Pocket Casts episode sync.
   [#15](../../issues/15)
-- Adjustable equaliser and mono output remain to be designed around the
-  existing Android audio stack, with Bluetooth and casting behaviour checked
-  before enabling them. [#12](../../issues/12)
+- **Three-band equaliser and mono (source implemented, unverified):** Android
+  Playback Effects now exposes device-local Bass, Midrange and Treble sliders
+  (-6 to +6 dB, flat by default) and a Mono audio switch (off by default).
+  Reuses the existing Android audio-effects session and Media3 PCM processor
+  chain; it does not introduce another player, server or subscription. EQ
+  support depends on Android hardware; mono downmix applies to 16-bit stereo
+  PCM but leaves other audio formats alone. Casting and the Kitchen Hub web
+  player are unchanged. Bluetooth and on-device audio compatibility must be
+  checked during acceptance. [#12](../../issues/12)
 - **Recurring chapter-title skipping (source implemented, unverified):**
   optional device-local comma-separated chapter title words/phrases per podcast.
   Matching chapter entries are treated as unselected in the existing playback
@@ -96,8 +102,8 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 1. Source-only core playback actions and dismissal; verify the data rules.
 2. Complete per-podcast rolling download, new-title exclusion and tile
    Download all controls; source implementations await compilation and review.
-3. Verify recurring chapter-title skipping and audit remaining per-podcast
-   overrides, then design playback effects (EQ, mono) conservatively.
+3. Source review, focused checks and on-phone acceptance for recurring
+   chapter skips, EQ, mono and the remaining per-podcast override details.
 4. Review terminology, icon, performance and remaining requested features.
 5. Confirm source validation, review PRs, then approve a single phone APK.
 6. Only after the player is accepted: design, preview, and separately approve

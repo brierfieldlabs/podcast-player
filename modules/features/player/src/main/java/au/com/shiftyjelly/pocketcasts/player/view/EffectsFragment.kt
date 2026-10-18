@@ -6,6 +6,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CompoundButton
+import android.widget.SeekBar
+import android.widget.TextView
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.MaterialTheme
@@ -37,6 +40,7 @@ import au.com.shiftyjelly.pocketcasts.player.viewmodel.PlayerViewModel
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.PlayerViewModel.PlaybackEffectsSettingsTab
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PodcastPlayerAudioPreferences
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
 import au.com.shiftyjelly.pocketcasts.ui.helper.ColorUtils
 import au.com.shiftyjelly.pocketcasts.ui.helper.StatusBarIconColor
@@ -76,6 +80,8 @@ class EffectsFragment :
 
     @Inject lateinit var playbackManager: PlaybackManager
 
+    @Inject lateinit var audioPreferences: PodcastPlayerAudioPreferences
+
     override val statusBarIconColor = StatusBarIconColor.Light
 
     private val viewModel: PlayerViewModel by activityViewModels()
@@ -109,8 +115,60 @@ class EffectsFragment :
         }
 
         updateTrimState()
+        setupPodcastPlayerAudioControls()
 
         return binding?.root
+    }
+
+    private fun setupPodcastPlayerAudioControls() {
+        val binding = binding ?: return
+        binding.switchMono.isChecked = audioPreferences.mono
+        binding.switchMono.setOnCheckedChangeListener { _, checked ->
+            audioPreferences.mono = checked
+        }
+        bindEqualizerBand(
+            binding.eqBassSeek,
+            binding.eqBassLabel,
+            PodcastPlayerAudioPreferences.Band.Bass,
+            LR.string.podcast_player_audio_bass,
+        )
+        bindEqualizerBand(
+            binding.eqMidSeek,
+            binding.eqMidLabel,
+            PodcastPlayerAudioPreferences.Band.Mid,
+            LR.string.podcast_player_audio_mid,
+        )
+        bindEqualizerBand(
+            binding.eqTrebleSeek,
+            binding.eqTrebleLabel,
+            PodcastPlayerAudioPreferences.Band.Treble,
+            LR.string.podcast_player_audio_treble,
+        )
+    }
+
+    private fun bindEqualizerBand(
+        slider: SeekBar,
+        label: TextView,
+        band: PodcastPlayerAudioPreferences.Band,
+        @StringRes titleRes: Int,
+    ) {
+        slider.progress = audioPreferences.gainDb(band) + 6
+        fun updateLabel(value: Int) {
+            label.text = getString(LR.string.podcast_player_audio_band, getString(titleRes), value)
+        }
+        updateLabel(slider.progress - 6)
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) updateLabel(progress - 6)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                audioPreferences.setGainDb(band, seekBar.progress - 6)
+                playbackManager.refreshPodcastPlayerEqualizer()
+            }
+        })
     }
 
     override fun onDestroyView() {

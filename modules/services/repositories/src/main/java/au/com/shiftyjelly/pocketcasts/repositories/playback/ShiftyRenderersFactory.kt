@@ -25,6 +25,7 @@ class ShiftyRenderersFactory(
     context: Context,
     statsManager: StatsManager,
     private var boostVolume: Boolean,
+    private val audioPreferences: PodcastPlayerAudioPreferences,
     private val fingerprintPcmTap: FingerprintPcmTap? = null,
     private val fingerprintTapEnabled: () -> Boolean = { false },
     audioLevelMeterEnabled: () -> Boolean = { false },
@@ -34,8 +35,11 @@ class ShiftyRenderersFactory(
     private var internalRenderer: ShiftyAudioRendererV2? = null
     private var audioSink: AudioSink? = null
     private var processorChain: ShiftyAudioProcessorChain? = null
-    private val customAudio = ShiftyCustomAudio(statsManager)
+    private val customAudio = ShiftyCustomAudio(statsManager, audioPreferences)
     private val audioLevelMeter = AudioLevelMeterProcessor(audioLevelMeterEnabled)
+    private val monoProcessor = MonoMixAudioProcessor { audioPreferences.mono }
+
+    fun refreshEqualizer() = customAudio.refreshEffects()
 
     val currentAudioLevel: Float get() = audioLevelMeter.currentAudioLevel
 
@@ -56,7 +60,12 @@ class ShiftyRenderersFactory(
 
     override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioOutputPlaybackParameters: Boolean): AudioSink {
         val tapProcessor = fingerprintPcmTap?.let { FingerprintTapAudioProcessor(it, fingerprintTapEnabled) }
-        processorChain = ShiftyAudioProcessorChain(customAudio, tapProcessor, audioLevelMeter)
+        processorChain = ShiftyAudioProcessorChain(
+            customAudio,
+            tapProcessor,
+            audioLevelMeter,
+            monoProcessor,
+        )
         val sink = DefaultAudioSink.Builder(context)
             .setAudioProcessorChain(processorChain!!)
             .setEnableFloatOutput(enableFloatOutput)

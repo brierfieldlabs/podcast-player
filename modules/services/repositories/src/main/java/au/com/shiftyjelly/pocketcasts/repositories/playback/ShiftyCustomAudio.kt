@@ -7,50 +7,91 @@ import timber.log.Timber
 
 class ShiftyCustomAudio(
     private val statsManager: StatsManager,
+    private val audioPreferences: PodcastPlayerAudioPreferences,
 ) {
     private var enhancer: LoudnessEnhancer? = null
     private var equalizer: Equalizer? = null
+    private var audioSessionId: Int? = null
     private var boostVolume = false
     var playbackSpeed = 0f
 
     fun setBoostVolume(boostVolume: Boolean) {
         this.boostVolume = boostVolume
-        enhancer?.setEnabled(boostVolume)
-        equalizer?.setEnabled(boostVolume)
+        refreshEffects()
     }
 
     fun setupVolumeBoost(audioSessionId: Int) {
+        enhancer?.release()
+        equalizer?.release()
+        enhancer = null
+        equalizer = null
+        this.audioSessionId = audioSessionId
         try {
             enhancer = LoudnessEnhancer(audioSessionId).apply {
                 setTargetGain(LOUDNESS_TARGET_GAIN)
-                enabled = boostVolume
             }
         } catch (e: Exception) {
-            // Some devices don't support the loudness enhancer. They'll throw an exception when you try and create one.
-            // Samsung S5 and LG G3 both do this. Seems to work on the Nexus devices mainly.
-            Timber.e(e, "Failed to create loudness enhancer")
+            Timber.w(e, "Device does not support loudness enhancement")
+        }
+        refreshEffects()
+    }
+
+    /** Apply user EQ changes to the current session without restarting playback. */
+    fun refreshEffects() {
+        val customEqualizer = audioPreferences.hasEqualizerAdjustment()
+        if ((customEqualizer || enhancer == null) && equalizer == null) {
+            val session = audioSessionId
+            if (session != null) {
+                try {
+                    equalizer = Equalizer(0, session)
+                } catch (e: Exception) {
+                    Timber.w(e, "Device does not support Android equalizer")
+                }
+            }
         }
 
-        if (enhancer == null) {
-            try {
-                equalizer = Equalizer(0, audioSessionId).apply {
-                    repeat(numberOfBands.toInt()) { intBand ->
-                        val band = intBand.toShort()
-                        when (getCenterFreq(band) / 1000) {
-                            in 0..<100 -> setBandLevel(band, (-5 * 100).toShort())
-                            in 100..<250 -> setBandLevel(band, 0.toShort())
-                            in 250..<1000 -> setBandLevel(band, (10 * 100).toShort())
-                            in 1000..<2000 -> setBandLevel(band, (12 * 100).toShort())
-                            in 2000..<10000 -> setBandLevel(band, (8 * 100).toShort())
-                            else -> setBandLevel(band, 0.toShort())
+        val hasEqualizer = equalizer != null
+        try {
+            // Volume boost remains a separate user setting. Where supported,
+            // Android can run both effects on the same local audio session.
+            enhancer?.enabled = boostVolume
+            equalizer?.let { effect ->
+                for (index in 0 until effect.numberOfBands.toInt()) {
+                    val band = index.toShort()
+                    val hz = effect.getCenterFreq(band) / 1000
+                    val gainDb = if (customEqualizer) {
+                        when {
+                            hz < 400 -> audioPreferences.gainDb(PodcastPlayerAudioPreferences.Band.Bass)
+                            hz < 3500 -> audioPreferences.gainDb(PodcastPlayerAudioPreferences.Band.Mid)
+                            else -> audioPreferences.gainDb(PodcastPlayerAudioPreferences.Band.Treble)
+                        }
+                    } else {
+                        // Preserve the original fixed voice-boost fallback on
+                        // devices that do not provide LoudnessEnhancer.
+                        when (hz) {
+                            in 0..<100 -> -5
+                            in 100..<250 -> 0
+                            in 250..<1000 -> 10
+                            in 1000..<2000 -> 12
+                            in 2000..<10000 -> 8
+                            else -> 0
                         }
                     }
-                    enabled = boostVolume
+                    val range = effect.bandLevelRange
+                    effect.setBandLevel(band, (gainDb * 100).coerceIn(range[0].toInt(), range[1].toInt()).toShort())
                 }
-            } catch (e: Exception) {
-                // Some devices don't support the equalizer. They'll throw an exception when you try and create one.
-                Timber.e(e, "Failed to create equalizer")
+                effect.enabled = if (customEqualizer) true else boostVolume && enhancer == null
             }
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to apply Android audio effects")
+            try {
+                equalizer?.enabled = false
+            } catch (_: Exception) {
+                // The platform may have invalidated the audio session.
+            }
+        }
+        if (customEqualizer && !hasEqualizer) {
+            Timber.w("Equalizer requested but unavailable for current audio session")
         }
     }
 

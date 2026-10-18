@@ -40,6 +40,13 @@
     <string name="podcast_player_excluded_titles">Automatically dismiss matching episode titles</string>
     <string name="podcast_player_excluded_titles_hint">Title words or phrases, separated by commas</string>
     <string name="podcast_player_excluded_titles_explanation">Matching NEW episodes will be dismissed automatically before queueing or downloading. Existing episodes are unchanged. They are not marked played and can be restored using Show dismissed.</string>
+    <string name="podcast_player_audio_mono">Mono audio (both ears)</string>
+    <string name="podcast_player_audio_equalizer">Equaliser (three-band)</string>
+    <string name="podcast_player_audio_band">%1$s: %2$+d dB</string>
+    <string name="podcast_player_audio_bass">Bass</string>
+    <string name="podcast_player_audio_mid">Midrange</string>
+    <string name="podcast_player_audio_treble">Treble</string>
+    <string name="podcast_player_audio_local_only">These settings affect playback on this Android device only. Equaliser support depends on the device; casting audio is unchanged.</string>
     <string name="podcast_player_download_all_title">Download all unplayed episodes?</string>
     <string name="podcast_player_download_all_warning">Queue %1$d unplayed episodes for offline listening. Played, dismissed, previously downloaded, already queued, failed and stream-only episodes are excluded. Downloading may take significant storage and time; your Wi-Fi, charging and storage settings apply.</string>
     <string name="podcast_player_download_all_nothing">No unplayed episodes left to download</string>

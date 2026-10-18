@@ -624,6 +624,11 @@ open class PlaybackManager @Inject constructor(
         return player?.isRemote ?: false
     }
 
+    /** Refresh device-local EQ gains for Android output only; cast stays unchanged. */
+    fun refreshPodcastPlayerEqualizer() {
+        (player as? SimplePlayer)?.refreshPodcastPlayerEqualizer()
+    }
+
     fun isAudioEffectsAvailable(): Boolean {
         val episode = getCurrentEpisode()
         return episode != null
