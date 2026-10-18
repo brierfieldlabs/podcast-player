@@ -1360,11 +1360,24 @@ class PodcastFragment : BaseFragment() {
     }
 
     private fun downloadAll() {
-        val episodeCount = viewModel.episodeCount()
-        val dialog = ConfirmationDialog.downloadWarningDialog(episodeCount, resources) {
-            viewModel.downloadAll()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val episodes = viewModel.eligibleOfflineEpisodes()
+            if (episodes.isEmpty()) {
+                showSnackBar(getString(LR.string.podcast_player_download_all_nothing))
+            } else {
+                ConfirmationDialog()
+                    .setTitle(getString(LR.string.podcast_player_download_all_title))
+                    .setSummary(getString(LR.string.podcast_player_download_all_warning, episodes.size))
+                    .setIconId(IR.drawable.ic_download)
+                    .setButtonType(
+                        ConfirmationDialog.ButtonType.Normal(
+                            getString(LR.string.download_warning_button, episodes.size),
+                        ),
+                    )
+                    .setOnConfirm { viewModel.downloadAll(episodes) }
+                    .show(parentFragmentManager, "download_confirm")
+            }
         }
-        dialog?.show(parentFragmentManager, "download_confirm")
     }
 
     private fun showSnackBar(

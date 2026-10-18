@@ -14,6 +14,7 @@ import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.BadgeType
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
@@ -329,11 +330,7 @@ class PodcastsViewModel @AssistedInject constructor(
      */
     suspend fun episodesForOffline(podcast: Podcast): List<PodcastEpisode> = withContext(Dispatchers.IO) {
         episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
-            .asSequence()
-            .filterNot { it.isFinished || it.isArchived || it.isDownloaded || it.isDownloading || it.isDownloadPending }
-            .filterNot { it.isHlsOnly || it.isDownloadFailure }
-            .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
-            .toList()
+            .eligibleForOfflineDownload()
     }
 
     fun downloadAllForOffline(episodes: List<PodcastEpisode>) {

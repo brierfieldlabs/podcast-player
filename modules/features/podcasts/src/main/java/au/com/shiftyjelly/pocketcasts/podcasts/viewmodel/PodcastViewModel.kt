@@ -34,6 +34,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkPlaybackTime
 import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
@@ -82,7 +83,6 @@ import io.reactivex.schedulers.Schedulers
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
-import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -493,10 +493,22 @@ class PodcastViewModel @Inject constructor(
         return true
     }
 
-    fun downloadAll() {
-        val episodes = (uiState.value as? UiState.Loaded)?.episodes ?: return
-        val trimmedList = episodes.subList(0, min(Settings.MAX_DOWNLOAD, episodes.count())).map(PodcastEpisode::uuid)
-        downloadQueue.enqueueAll(trimmedList, DownloadType.UserTriggered(waitForWifi = false), SourceView.PODCAST_SCREEN)
+    /** The complete unfinished offline candidate list, not the current screen's
+     * limited, grouped, searched or optionally dismissed episode collection.
+     */
+    suspend fun eligibleOfflineEpisodes(): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        val currentPodcast = this@PodcastViewModel.podcast.value ?: return@withContext emptyList()
+        episodeManager.findEpisodesByPodcastOrderedByPublishDate(currentPodcast)
+            .eligibleForOfflineDownload()
+    }
+
+    fun downloadAll(episodes: List<PodcastEpisode>) {
+        if (episodes.isEmpty()) return
+        downloadQueue.enqueueAll(
+            episodes.map(PodcastEpisode::uuid),
+            DownloadType.Automatic(bypassAutoDownloadStatus = true),
+            SourceView.PODCAST_SCREEN,
+        )
     }
 
     suspend fun getFolder(): Folder? {

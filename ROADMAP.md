@@ -50,7 +50,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   failed and stream-only episodes. Unlike the existing **Download unfinished**
   bulk action, this has no silent 100-episode cutoff. The duplicate capped
   **Download unfinished** option is removed from the tile menu, leaving one
-  clear **Download all** action for all unplayed episodes. It uses the native
+  clear **Download all** action for all unplayed episodes. The podcast screen's
+  own Download all option now follows the same selection and confirmation,
+  rather than downloading archived/played items and stopping after 100. It uses the native
   automatic-download Wi-Fi, charging and storage constraints; confirm
   downloads have completed before travelling. [#21](../../issues/21)
 - **Title exclusions (source implemented, unverified):** a per-podcast list of
