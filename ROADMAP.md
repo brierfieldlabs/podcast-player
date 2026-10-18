@@ -59,10 +59,15 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - **Rolling oldest-first offline downloads (source implemented, unverified):**
   per-podcast 0-10 unfinished episodes, off by default, refill on completion,
   feed refresh and manual dismissal. Existing downloaded/pending episodes count against the limit;
-  extras are never automatically deleted to enforce a smaller limit. Newer
-  downloaded episodes cannot displace the oldest unfinished download slots.
+  extras are never automatically deleted to enforce a smaller limit. Already
+  downloaded or pending episodes still occupy a slot if their automatic
+  download opt-out flag changes; undownloaded opted-out episodes do not.
+  Newer downloaded episodes cannot displace the oldest unfinished download slots.
   Download failures or non-downloadable episodes do not occupy the rolling
-  slots; failures must be retried manually. Uses existing automatic-download
+  slots; failures must be retried manually. A manual deletion is not
+  automatically replenished yet: immediately re-downloading something the
+  user deliberately removed would be surprising, so review that interaction
+  separately during phone acceptance. Uses existing automatic-download
   Wi-Fi, charging and storage preferences. This
   preference is **device-local**, not part of Pocket Casts web sync.
   [#14](../../issues/14)
