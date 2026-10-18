@@ -40,9 +40,9 @@
     <string name="podcast_player_excluded_titles">Automatically dismiss matching episode titles</string>
     <string name="podcast_player_excluded_titles_hint">Title words or phrases, separated by commas</string>
     <string name="podcast_player_excluded_titles_explanation">Matching NEW episodes will be dismissed automatically before queueing or downloading. Existing episodes are unchanged. They are not marked played and can be restored using Show dismissed.</string>
-    <string name="podcast_player_download_all_title">Download all available episodes?</string>
-    <string name="podcast_player_download_all_warning">Queue %1$d episodes for offline listening, including previously played episodes. Dismissed, previously downloaded, already queued, failed and stream-only episodes will be excluded. Downloading may take significant storage and time; your Wi-Fi, charging and storage settings apply.</string>
-    <string name="podcast_player_download_all_nothing">All available episodes are already downloaded or queued, dismissed or unavailable for download</string>
+    <string name="podcast_player_download_all_title">Download all unplayed episodes?</string>
+    <string name="podcast_player_download_all_warning">Queue %1$d unplayed episodes for offline listening. Played, dismissed, previously downloaded, already queued, failed and stream-only episodes are excluded. Downloading may take significant storage and time; your Wi-Fi, charging and storage settings apply.</string>
+    <string name="podcast_player_download_all_nothing">No unplayed episodes left to download</string>
     <string name="podcast_player_rolling_downloads">Rolling downloads (oldest first)</string>
     <string name="podcast_player_rolling_downloads_count">Keep up to %1$d unfinished episodes offline. Refill automatically; Wi-Fi, power and storage limits apply. Existing downloads are not deleted.</string>
     <string name="podcast_player_play_from_episode">Play from here (oldest to newest)</string>

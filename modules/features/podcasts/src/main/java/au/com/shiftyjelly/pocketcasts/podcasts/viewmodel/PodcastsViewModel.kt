@@ -323,13 +323,13 @@ class PodcastsViewModel @AssistedInject constructor(
     }
 
     /**
-     * Every non-dismissed, downloadable episode, including ones already played.
+     * All unfinished, non-dismissed and downloadable podcast episodes.
      * Downloaded, in-flight, failed or HLS-only episodes are not queued again.
      */
     suspend fun episodesForOffline(podcast: Podcast): List<PodcastEpisode> = withContext(Dispatchers.IO) {
         episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
             .asSequence()
-            .filterNot { it.isArchived || it.isDownloaded || it.isDownloading || it.isDownloadPending }
+            .filterNot { it.isFinished || it.isArchived || it.isDownloaded || it.isDownloading || it.isDownloadPending }
             .filterNot { it.isHlsOnly || it.isDownloadFailure }
             .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
             .toList()

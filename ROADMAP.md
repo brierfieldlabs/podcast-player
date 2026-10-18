@@ -36,13 +36,13 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   [#14](../../issues/14)
 - **Download all from a podcast tile (source implemented, unverified):**
   long-press a podcast tile, choose **Download all**, review a confirmation
-  containing the actual eligible episode count, and queue everything for
-  offline listening. Includes previously played episodes, but excludes
-  dismissed, downloaded, already queued, failed and stream-only episodes.
-  Unlike the existing **Download unfinished** bulk action, this does not
-  silently cap its selection at 100. It uses native automatic-download
-  Wi-Fi, charging and storage constraints; confirm before travelling that
-  downloads have actually completed. [#21](../../issues/21)
+  containing the actual eligible unplayed episode count, and queue all
+  unfinished, non-dismissed episodes for offline listening. **Played**
+  episodes are excluded, as are previously downloaded, already queued,
+  failed and stream-only episodes. Unlike the existing **Download unfinished**
+  bulk action, this has no silent 100-episode cutoff. It uses the native
+  automatic-download Wi-Fi, charging and storage constraints; confirm
+  downloads have completed before travelling. [#21](../../issues/21)
 - **Title exclusions (source implemented, unverified):** a per-podcast list of
   comma-separated words or phrases automatically dismisses matching **new**
   feed episodes before queueing/downloading. Existing episodes aren't bulk
