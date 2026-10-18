@@ -37,7 +37,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   feed refresh. Existing downloaded/pending episodes count against the limit;
   extras are never automatically deleted to enforce a smaller limit. Newer
   downloaded episodes cannot displace the oldest unfinished download slots.
-  Uses existing automatic-download Wi-Fi, charging and storage preferences. This
+  Download failures or non-downloadable episodes do not occupy the rolling
+  slots; failures must be retried manually. Uses existing automatic-download
+  Wi-Fi, charging and storage preferences. This
   preference is **device-local**, not part of Pocket Casts web sync.
   [#14](../../issues/14)
 - **Download all from a podcast tile (source implemented, unverified):**

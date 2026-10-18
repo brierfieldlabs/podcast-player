@@ -69,9 +69,12 @@ class AutoDownloadEpisodeProvider @Inject constructor(
         // Fill the oldest unfinished slots first. Already downloaded newer
         // episodes remain available, but cannot displace missing older ones.
         return episodes.asSequence()
+            // Non-downloadable media and failed items must not take one of the
+            // N offline slots. A failed item can be retried manually.
+            .filterNot { it.isHlsOnly || it.isAutoDownloadDisabled || it.isDownloadFailure }
             .take(limit)
             .filter { it.canQueueForAutoDownload }
-            .filterNot { it.isDownloaded || it.isDownloading || it.isDownloadPending || it.isDownloadFailure }
+            .filterNot { it.isDownloaded || it.isDownloading || it.isDownloadPending }
             .map(PodcastEpisode::uuid)
             .toSet()
     }
