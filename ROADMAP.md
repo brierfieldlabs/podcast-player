@@ -152,11 +152,19 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - **2026-10-18 focused compilation:** the offline
   `:modules:services:repositories:compileDebugKotlin` task **passed**, including
   Android playback, float/16-bit dual-mono and download repository sources
-  (159 tasks completed/from cache). The wider repositories + podcasts + player
-  + settings attempt was blocked before compilation by an *uncached upstream*
-  `sh.calvin.reorderable:reorderable-android-debug:3.1.0` artefact. Those
-  feature modules, the complete APK and real-phone playback are **not yet
-  verified**. No APK was built, installed or released.
+  (159 tasks executed/from cache). The first broader offline attempt was blocked
+  by an uncached upstream dependency:
+  `sh.calvin.reorderable:reorderable-android-debug:3.1.0`. Its genuine
+  upstream debug artefact was downloaded using normal Gradle resolution,
+  without modifying dependencies or introducing a workaround.
+- The subsequent **module-only** Kotlin compilation of
+  `:modules:features:podcasts:compileDebugKotlin`,
+  `:modules:features:player:compileDebugKotlin`, and
+  `:modules:features:settings:compileDebugKotlin` **passed together** in 7m30s
+  (339 tasks: 126 executed, 55 from cache, 158 up-to-date). Source changes
+  in the four directly affected modules now compile, but the complete APK,
+  runtime behaviour, Bluetooth/casting and phone acceptance are unverified.
+  No APK was assembled, installed or released.
 - Verify the existing Android application ID, certificate and sync still work
   before switching your phone from PodcastGPT v1.1.0.
 - Preserve existing Podcast Addict data and the user's Pocket Casts login.
@@ -165,7 +173,7 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 
 1. Source-only core playback actions and dismissal; verify the data rules.
 2. Complete per-podcast rolling download, new-title exclusion and tile
-   Download all controls; source implementations await compilation and review.
+   Download all controls; source now compiles but runtime behaviour awaits review.
 3. Source review, focused checks and on-phone acceptance for recurring
    chapter skips, EQ, mono and the remaining per-podcast override details.
 4. Review terminology, icon, performance and remaining requested features.
