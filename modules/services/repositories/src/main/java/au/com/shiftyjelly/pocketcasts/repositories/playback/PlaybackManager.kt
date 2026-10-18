@@ -44,7 +44,9 @@ import au.com.shiftyjelly.pocketcasts.repositories.R
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
 import au.com.shiftyjelly.pocketcasts.repositories.di.NotificationPermissionChecker
+import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
 import au.com.shiftyjelly.pocketcasts.repositories.fingerprint.GeneratedChapterSeeker
 import au.com.shiftyjelly.pocketcasts.repositories.history.upnext.UpNextHistoryManager
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
@@ -158,6 +160,7 @@ open class PlaybackManager @Inject constructor(
     @ApplicationContext private val application: Context,
     private val playlistManager: PlaylistManager,
     private val downloadQueue: DownloadQueue,
+    private val autoDownloadEpisodeProvider: AutoDownloadEpisodeProvider,
     val upNextQueue: UpNextQueue,
     private val notificationHelper: NotificationHelper,
     private val userEpisodeManager: UserEpisodeManager,
@@ -1783,6 +1786,20 @@ open class PlaybackManager @Inject constructor(
             // auto archive after playing
             if (episode is PodcastEpisode) {
                 episodeManager.archivePlayedEpisode(episode, this, podcastManager, sync = true)
+                // Replenish only enabled offline collections. The queued automatic
+                // downloads still obey the user's Wi-Fi, power and storage rules.
+                applicationScope.launch(Dispatchers.IO) {
+                    podcastManager.findPodcastByUuid(episode.podcastUuid)?.let { podcast ->
+                        val rolling = autoDownloadEpisodeProvider.getRollingEpisodes(podcast)
+                        if (rolling.isNotEmpty()) {
+                            downloadQueue.enqueueAll(
+                                rolling,
+                                DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                                SourceView.AUTO_DOWNLOAD,
+                            )
+                        }
+                    }
+                }
             } else if (episode is UserEpisode) {
                 userEpisodeManager.deletePlayedEpisodeIfReq(episode, this)
             }

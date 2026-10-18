@@ -23,9 +23,24 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   identity remain unchanged. Automatic dismissal can trigger existing
   downloaded-audio cleanup; do not present it as equivalent to playing.
   [#20](../../issues/20)
-- Podcast-specific download, cleanup and playback overrides, plus rolling
-  oldest-first offline downloads and episode title exclusions. [#11](../../issues/11),
-  [#14](../../issues/14), [#15](../../issues/15)
+- Podcast-specific download, cleanup and playback overrides. Existing settings
+  already include new-episode downloads, speed, volume boost, silence removal,
+  introduction/outro skipping and auto-dismissal; review missing overrides in
+  [#11](../../issues/11).
+- **Rolling oldest-first offline downloads (source implemented, unverified):**
+  per-podcast 0-10 unfinished episodes, off by default, refill on completion and
+  feed refresh. Existing downloaded/pending episodes count against the limit;
+  extras are never automatically deleted to enforce a smaller limit. Uses
+  existing automatic-download Wi-Fi, charging and storage preferences. This
+  preference is **device-local**, not part of Pocket Casts web sync.
+  [#14](../../issues/14)
+- **Title exclusions (source implemented, unverified):** a per-podcast list of
+  comma-separated words or phrases automatically dismisses matching **new**
+  feed episodes before queueing/downloading. Existing episodes aren't bulk
+  dismissed when the setting changes. This does not mark episodes played;
+  restoring a dismissed episode remains possible. The exclusion rules are
+  device-local; the resulting dismissal uses existing Pocket Casts episode sync.
+  [#15](../../issues/15)
 - Adjustable equaliser, mono output and recurring chapter-title skipping,
   subject to compatibility checks. [#12](../../issues/12), [#13](../../issues/13)
 - UK English and Podcast Addict-familiar wording without changing Pocket Casts
@@ -62,8 +77,10 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 ## Development order
 
 1. Source-only core playback actions and dismissal; verify the data rules.
-2. Complete the per-podcast options and queue behaviour.
-3. Rolling downloads, title exclusions and playback effects.
+2. Complete per-podcast rolling download and new-title exclusion controls;
+   their first source implementation is committed subject to review.
+3. Audit remaining per-podcast overrides, then playback effects (EQ, mono)
+   and recurring chapter skipping.
 4. Review terminology, icon, performance and remaining requested features.
 5. Confirm source validation, review PRs, then approve a single phone APK.
 6. Only after the player is accepted: design, preview, and separately approve

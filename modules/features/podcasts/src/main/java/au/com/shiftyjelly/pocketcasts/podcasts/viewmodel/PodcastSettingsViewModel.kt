@@ -11,6 +11,10 @@ import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
 import au.com.shiftyjelly.pocketcasts.models.type.SmartRules.PodcastsRule
 import au.com.shiftyjelly.pocketcasts.models.type.TrimMode
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.PodcastPlayerPodcastPreferences
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.playlist.PlaylistManager
 import au.com.shiftyjelly.pocketcasts.repositories.playlist.SmartPlaylistPreview
@@ -60,11 +64,16 @@ class PodcastSettingsViewModel @AssistedInject constructor(
     private val playlistManager: PlaylistManager,
     private val playbackManager: PlaybackManager,
     private val settings: Settings,
+    private val rollingPreferences: PodcastPlayerPodcastPreferences,
+    private val rollingDownloadProvider: AutoDownloadEpisodeProvider,
+    private val downloadQueue: DownloadQueue,
     private val eventHorizon: EventHorizon,
     @Assisted private val podcastUuid: String,
 ) : ViewModel() {
     private val podcastFlow = MutableStateFlow<Podcast?>(null)
     private val playlistsFlow = MutableStateFlow<List<SmartPlaylistPreview>?>(null)
+    private val rollingDownloadLimit = MutableStateFlow(rollingPreferences.rollingLimit(podcastUuid))
+    private val excludedTitleTerms = MutableStateFlow(rollingPreferences.excludedTitles(podcastUuid))
 
     init {
         viewModelScope.launch {
@@ -84,17 +93,22 @@ class PodcastSettingsViewModel @AssistedInject constructor(
     }
 
     val uiState = combine(
-        podcastFlow,
-        playlistsFlow,
-        settings.autoAddUpNextLimit.flow,
-        settings.autoDownloadNewEpisodes.flow.map { it == Podcast.AUTO_DOWNLOAD_NEW_EPISODES },
-    ) { podcast, playlists, upNextLimit, isGlobalAutoDownloadEnabled ->
-        if (podcast != null && playlists != null) {
-            UiState(podcast, playlists, upNextLimit, isGlobalAutoDownloadEnabled)
-        } else {
-            null
-        }
-    }.stateIn(viewModelScope, started = SharingStarted.Eagerly, initialValue = null)
+        combine(
+            podcastFlow,
+            playlistsFlow,
+            settings.autoAddUpNextLimit.flow,
+            settings.autoDownloadNewEpisodes.flow.map { it == Podcast.AUTO_DOWNLOAD_NEW_EPISODES },
+            rollingDownloadLimit,
+        ) { podcast, playlists, upNextLimit, isGlobalAutoDownloadEnabled, rollingLimit ->
+            if (podcast != null && playlists != null) {
+                UiState(podcast, playlists, upNextLimit, isGlobalAutoDownloadEnabled, rollingLimit)
+            } else {
+                null
+            }
+        },
+        excludedTitleTerms,
+    ) { state, excluded -> state?.copy(excludedTitleTerms = excluded) }
+        .stateIn(viewModelScope, started = SharingStarted.Eagerly, initialValue = null)
 
     fun getArtworkUuidsFlow(playlistUuid: String): StateFlow<List<String>?> {
         return playlistManager.getArtworkUuidsFlow(playlistUuid)
@@ -127,6 +141,31 @@ class PodcastSettingsViewModel @AssistedInject constructor(
             val status = if (enable) Podcast.AUTO_DOWNLOAD_NEW_EPISODES else Podcast.AUTO_DOWNLOAD_OFF
             podcastFlow.update { it?.copy(autoDownloadStatus = status) }
             podcastManager.updateAutoDownloadStatusBlocking(podcast, status)
+        }
+    }
+
+    fun changeExcludedTitleTerms(value: String) {
+        excludedTitleTerms.value = rollingPreferences.setExcludedTitles(podcastUuid, value)
+    }
+
+    fun changeRollingDownloadLimit(delta: Int) {
+        val limit = (rollingDownloadLimit.value + delta)
+            .coerceIn(0, PodcastPlayerPodcastPreferences.MAX_ROLLING_DOWNLOADS)
+        if (limit == rollingDownloadLimit.value) return
+        rollingDownloadLimit.value = limit
+        rollingPreferences.setRollingLimit(podcastUuid, limit)
+        if (limit > 0) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val podcast = podcastManager.findPodcastByUuid(podcastUuid) ?: return@launch
+                val episodes = rollingDownloadProvider.getRollingEpisodes(podcast)
+                if (episodes.isNotEmpty()) {
+                    downloadQueue.enqueueAll(
+                        episodes,
+                        DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                        SourceView.AUTO_DOWNLOAD,
+                    )
+                }
+            }
         }
     }
 
@@ -439,6 +478,8 @@ class PodcastSettingsViewModel @AssistedInject constructor(
         val playlists: List<SmartPlaylistPreview>,
         val globalUpNextLimit: Int,
         val isGlobalAutoDownloadEnabled: Boolean,
+        val rollingDownloadLimit: Int = 0,
+        val excludedTitleTerms: String = "",
     ) {
         val selectedPlaylists = playlists
             .filter { playlist ->

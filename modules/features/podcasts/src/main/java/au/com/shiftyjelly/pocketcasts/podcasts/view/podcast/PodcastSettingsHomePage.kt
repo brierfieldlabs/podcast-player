@@ -16,10 +16,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +66,9 @@ internal fun PodcastSettingsHomePage(
     iconTint: Color,
     onChangeNotifications: (Boolean) -> Unit,
     onChangeAutoDownload: (Boolean) -> Unit,
+    onDecrementRollingDownloadLimit: () -> Unit,
+    onIncrementRollingDownloadLimit: () -> Unit,
+    onChangeExcludedTitleTerms: (String) -> Unit,
     onChangeAddToUpNext: (Boolean) -> Unit,
     onChangeUpNextPosition: () -> Unit,
     onChangeUpNextGlobalSettings: () -> Unit,
@@ -75,6 +85,8 @@ internal fun PodcastSettingsHomePage(
     modifier: Modifier = Modifier,
 ) {
     val podcast = uiState.podcast
+    var editingExclusions by remember { mutableStateOf(false) }
+    var editedTerms by remember { mutableStateOf("") }
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -112,6 +124,37 @@ internal fun PodcastSettingsHomePage(
                 role = Role.Switch,
                 onValueChange = onChangeAutoDownload,
             ),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+        ) {
+            SettingRow(
+                primaryText = stringResource(LR.string.podcast_player_rolling_downloads),
+                secondaryText = if (uiState.rollingDownloadLimit == 0) {
+                    stringResource(LR.string.off)
+                } else {
+                    stringResource(LR.string.podcast_player_rolling_downloads_count, uiState.rollingDownloadLimit)
+                },
+                icon = painterResource(IR.drawable.ic_download),
+                iconTint = iconTint,
+                modifier = Modifier.weight(1f),
+            )
+            NumberStepper(
+                onMinusClick = onDecrementRollingDownloadLimit,
+                onPlusClick = onIncrementRollingDownloadLimit,
+                tint = iconTint,
+            )
+        }
+        SettingRow(
+            primaryText = stringResource(LR.string.podcast_player_excluded_titles),
+            secondaryText = uiState.excludedTitleTerms.ifBlank { stringResource(LR.string.off) },
+            icon = painterResource(IR.drawable.ic_filters),
+            iconTint = iconTint,
+            modifier = Modifier.clickable(role = Role.Button) {
+                editedTerms = uiState.excludedTitleTerms
+                editingExclusions = true
+            },
         )
         SettingRow(
             primaryText = stringResource(LR.string.podcast_settings_add_to_up_next),
@@ -307,6 +350,37 @@ internal fun PodcastSettingsHomePage(
             )
         }
     }
+
+    if (editingExclusions) {
+        AlertDialog(
+            onDismissRequest = { editingExclusions = false },
+            title = { Text(stringResource(LR.string.podcast_player_excluded_titles)) },
+            text = {
+                Column {
+                    Text(stringResource(LR.string.podcast_player_excluded_titles_explanation))
+                    OutlinedTextField(
+                        value = editedTerms,
+                        onValueChange = { editedTerms = it },
+                        label = { Text(stringResource(LR.string.podcast_player_excluded_titles_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChangeExcludedTitleTerms(editedTerms)
+                    editingExclusions = false
+                }) {
+                    Text(stringResource(LR.string.done))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingExclusions = false }) {
+                    Text(stringResource(LR.string.cancel))
+                }
+            },
+        )
+    }
 }
 
 @Preview
@@ -344,6 +418,9 @@ private fun PodcastSettingsHomePagePreview(
             ),
             onChangeNotifications = {},
             onChangeAutoDownload = {},
+            onDecrementRollingDownloadLimit = {},
+            onIncrementRollingDownloadLimit = {},
+            onChangeExcludedTitleTerms = {},
             onChangeAddToUpNext = {},
             onChangeUpNextPosition = {},
             onChangeUpNextGlobalSettings = {},

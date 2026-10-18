@@ -209,7 +209,14 @@ class RefreshPodcastsThread(
 
         val syncRefreshState = sync()
 
-        addNewEpisodesToUpNext(addedEpisodes.episodesToAddToUpNext)
+        // Title exclusions are opt-in. Dismiss matches before automatic queueing
+        // and downloading, without marking those episodes as played.
+        val dismissedNewEpisodes = runBlocking {
+            autoDownloadProvider.dismissExcludedNewEpisodes(addedEpisodes.episodeUuidsAdded, playbackManager)
+        }
+        addNewEpisodesToUpNext(
+            addedEpisodes.episodesToAddToUpNext.filterNot { it.second.uuid in dismissedNewEpisodes },
+        )
 
         if (!emptyResponse) {
             val autoArchiveDuration = measureTime {
@@ -236,6 +243,14 @@ class RefreshPodcastsThread(
                 autoDownloadProvider.getAll(addedEpisodes.episodeUuidsAdded)
             }
             downloadQueue.enqueueAll(episodes, DownloadType.Automatic(bypassAutoDownloadStatus = false), SourceView.AUTO_DOWNLOAD)
+            // Rolling downloads are independently enabled for selected podcasts.
+            // Re-evaluate on every refresh, not just when the feed has new items.
+            val rolling = runBlocking { autoDownloadProvider.getAllRollingEpisodes() }
+            downloadQueue.enqueueAll(
+                rolling,
+                DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                SourceView.AUTO_DOWNLOAD,
+            )
         }
         LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "Refresh - auto download check - $autoDownloadDuration")
 
