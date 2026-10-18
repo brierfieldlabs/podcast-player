@@ -18,7 +18,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   The explicit **Play unfinished episodes** and **Play from here** controls
   also select the current podcast as the future autoplay source and clear an
   unrelated old Up Next queue, even when the selected podcast has only one
-  unfinished episode. The separate **Add unfinished to Up Next** action never
+  unfinished episode. The autoplay source is set **after** queue operations
+  because Pocket Casts clears remembered sources when inserting episodes.
+  The separate **Add unfinished to Up Next** action never
   clears the queue. The podcast autoplay selector now
   follows unfinished episodes **oldest to newest regardless of grid sorting**
   and stops when the podcast has no newer unfinished episodes, rather than

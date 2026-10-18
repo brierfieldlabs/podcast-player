@@ -990,6 +990,14 @@ open class PlaybackManager @Inject constructor(
                     episodes.drop(1).take((settings.getMaxUpNextEpisodes() - 1).coerceAtLeast(0)),
                 )
             }
+            if (replaceQueue && topEpisode is PodcastEpisode) {
+                // Inserting into a nonempty Up Next clears both remembered
+                // autoplay sources. Restore the selected podcast only AFTER
+                // all queue changes, or continuous playback silently stops.
+                val podcastSource = AutoPlaySource.fromId(topEpisode.podcastUuid)
+                settings.trackingAutoPlaySource.set(podcastSource, updateModifiedAt = false)
+                settings.lastAutoPlaySource.set(podcastSource, updateModifiedAt = false)
+            }
         }
     }
 

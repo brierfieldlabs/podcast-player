@@ -26,7 +26,6 @@ import au.com.shiftyjelly.pocketcasts.podcasts.helper.search.SearchHandler
 import au.com.shiftyjelly.pocketcasts.podcasts.viewmodel.podcast.RecommendationsHandler
 import au.com.shiftyjelly.pocketcasts.podcasts.viewmodel.podcast.RecommendationsResult
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.preferences.model.AutoPlaySource
 import au.com.shiftyjelly.pocketcasts.preferences.model.BookmarksSortType
 import au.com.shiftyjelly.pocketcasts.preferences.model.BookmarksSortTypeForPodcast
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkEpisodeResolver
@@ -481,12 +480,6 @@ class PodcastViewModel @Inject constructor(
         }
     }
 
-    private fun selectPodcastForAutoPlay(podcastUuid: String) {
-        val source = AutoPlaySource.fromId(podcastUuid)
-        settings.trackingAutoPlaySource.set(source, updateModifiedAt = false)
-        settings.lastAutoPlaySource.set(source, updateModifiedAt = false)
-    }
-
     // Starts with the selected unfinished episode, then plays newer visible
     // episodes of this podcast. Completed or dismissed episodes are excluded.
     fun playFromEpisodeOldestFirst(selected: PodcastEpisode): Boolean {
@@ -496,7 +489,6 @@ class PodcastViewModel @Inject constructor(
             .orEmpty()
         val start = chronological.indexOfFirst { it.uuid == selected.uuid }
         if (start == -1) return false
-        selectPodcastForAutoPlay(selected.podcastUuid)
         playbackManager.playEpisodes(
             chronological.drop(start).take(settings.getMaxUpNextEpisodes()),
             sourceView = SourceView.PODCAST_SCREEN,
@@ -514,7 +506,6 @@ class PodcastViewModel @Inject constructor(
             ?.take(settings.getMaxUpNextEpisodes())
             .orEmpty()
         if (episodes.isEmpty()) return false
-        selectPodcastForAutoPlay(episodes.first().podcastUuid)
         playbackManager.playEpisodes(episodes, sourceView = SourceView.PODCAST_SCREEN, replaceQueue = true)
         return true
     }
