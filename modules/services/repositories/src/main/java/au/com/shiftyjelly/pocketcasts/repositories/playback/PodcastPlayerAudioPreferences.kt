@@ -12,9 +12,17 @@ class PodcastPlayerAudioPreferences @Inject constructor(
 ) {
     private val preferences = context.getSharedPreferences("podcast_player_audio", Context.MODE_PRIVATE)
 
+    // ExoPlayer consults this on its audio thread for each PCM buffer. Cache
+    // the flag in memory rather than crossing SharedPreferences on every read.
+    @Volatile
+    private var monoEnabled = preferences.getBoolean("mono", false)
+
     var mono: Boolean
-        get() = preferences.getBoolean("mono", false)
-        set(value) = preferences.edit().putBoolean("mono", value).apply()
+        get() = monoEnabled
+        set(value) {
+            monoEnabled = value
+            preferences.edit().putBoolean("mono", value).apply()
+        }
 
     fun gainDb(band: Band): Int = preferences.getInt(band.key, 0).coerceIn(-6, 6)
 

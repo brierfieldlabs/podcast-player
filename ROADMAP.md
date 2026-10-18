@@ -11,7 +11,13 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   reliably: the new explicit **Play unfinished episodes (oldest first)** action
   is the first implementation step. Continuous playback now defaults to on
   for **new phone preference records**; explicit existing preferences win,
-  and queued episodes still take precedence. The podcast autoplay selector now
+  and queued episodes still take precedence. **Play oldest** on the podcast
+  tile now really begins playing the oldest unfinished episode instead of
+  just adding it to Up Next; it sets the chosen podcast as the continuing
+  autoplay source, while **Add unfinished to Up Next** preserves the queue.
+  The explicit **Play unfinished episodes** and **Play from here** controls
+  also select the current podcast as the future autoplay source, even if a
+  previous Up Next queue was active. The podcast autoplay selector now
   follows unfinished episodes **oldest to newest regardless of grid sorting**
   and stops when the podcast has no newer unfinished episodes, rather than
   wrapping back to the first episode. [#9](../../issues/9)
@@ -67,7 +73,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   Playback Effects now exposes device-local Bass, Midrange and Treble sliders
   (-6 to +6 dB, flat by default) and a Mono audio switch (off by default).
   Reuses the existing Android audio-effects session and Media3 PCM processor
-  chain; it does not introduce another player, server or subscription. EQ
+  chain; it does not introduce another player, server or subscription.
+  Mono's on/off flag is cached for audio-thread reads. With both EQ and volume
+  boost off, Android EQ creation and band reconfiguration are avoided. EQ
   support depends on Android hardware; mono downmix applies to 16-bit stereo
   PCM but leaves other audio formats alone. Casting and the Kitchen Hub web
   player are unchanged. Bluetooth and on-device audio compatibility must be

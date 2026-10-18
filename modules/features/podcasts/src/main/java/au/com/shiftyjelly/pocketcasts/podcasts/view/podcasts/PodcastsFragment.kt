@@ -587,11 +587,10 @@ class PodcastsFragment :
                     val episodes = viewModel.unfinishedEpisodes(podcast)
                     if (episodes.isEmpty()) {
                         showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    } else if (item.itemId == MENU_PLAY_OLDEST) {
+                        viewModel.playOldestUnfinished(episodes)
                     } else {
-                        viewModel.addUnfinishedToUpNext(
-                            episodes,
-                            playNext = item.itemId == MENU_PLAY_OLDEST,
-                        )
+                        viewModel.addUnfinishedToUpNext(episodes, playNext = false)
                     }
                 }
 

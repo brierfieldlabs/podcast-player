@@ -11,6 +11,7 @@ import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
 import au.com.shiftyjelly.pocketcasts.models.type.PodcastsSortType
 import au.com.shiftyjelly.pocketcasts.models.type.SignInState
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.preferences.model.AutoPlaySource
 import au.com.shiftyjelly.pocketcasts.preferences.model.BadgeType
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
@@ -318,9 +319,23 @@ class PodcastsViewModel @AssistedInject constructor(
         return toQueue.size
     }
 
+    private fun selectPodcastForAutoPlay(podcastUuid: String) {
+        val source = AutoPlaySource.fromId(podcastUuid)
+        settings.trackingAutoPlaySource.set(source, updateModifiedAt = false)
+        settings.lastAutoPlaySource.set(source, updateModifiedAt = false)
+    }
+
+    fun playOldestUnfinished(episodes: List<PodcastEpisode>) {
+        val oldest = episodes.firstOrNull() ?: return
+        selectPodcastForAutoPlay(oldest.podcastUuid)
+        // Start listening now. With continuous playback enabled, the next
+        // unfinished episode will follow from this podcast automatically.
+        playbackManager.playEpisodes(listOf(oldest), SourceView.PODCAST_LIST)
+    }
+
     fun playUnfinishedOldestFirst(episodes: List<PodcastEpisode>) {
-        // Unlike Play Next, this explicit action starts playback and queues the
-        // remaining episodes in chronological order.
+        if (episodes.isEmpty()) return
+        selectPodcastForAutoPlay(episodes.first().podcastUuid)
         playbackManager.playEpisodes(episodes.take(settings.getMaxUpNextEpisodes()), SourceView.PODCAST_LIST)
     }
 

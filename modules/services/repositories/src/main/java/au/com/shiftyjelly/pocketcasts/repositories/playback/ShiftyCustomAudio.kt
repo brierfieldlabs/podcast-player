@@ -39,7 +39,7 @@ class ShiftyCustomAudio(
     /** Apply user EQ changes to the current session without restarting playback. */
     fun refreshEffects() {
         val customEqualizer = audioPreferences.hasEqualizerAdjustment()
-        if ((customEqualizer || enhancer == null) && equalizer == null) {
+        if ((customEqualizer || (boostVolume && enhancer == null)) && equalizer == null) {
             val session = audioSessionId
             if (session != null) {
                 try {
@@ -55,6 +55,12 @@ class ShiftyCustomAudio(
             // Volume boost remains a separate user setting. Where supported,
             // Android can run both effects on the same local audio session.
             enhancer?.enabled = boostVolume
+            if (!customEqualizer && (!boostVolume || enhancer != null)) {
+                // Flat EQ and no fallback boost need no platform EQ work.
+                // Leave an existing effect disabled until it is requested.
+                equalizer?.enabled = false
+                return
+            }
             equalizer?.let { effect ->
                 for (index in 0 until effect.numberOfBands.toInt()) {
                     val band = index.toShort()
