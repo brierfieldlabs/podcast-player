@@ -2016,6 +2016,9 @@ open class PlaybackManager @Inject constructor(
     private var observeChaptersJob: Job? = null
 
     private fun onEpisodeChanged(episodeUuid: String) {
+        // An observer from the previous episode must never advance this one.
+        observeChaptersSkipping?.cancel()
+        observeChaptersSkipping = null
         observeChaptersJob?.cancel()
         observeChaptersJob = chapterManager.observerChaptersForEpisode(episodeUuid)
             .onEach { onChaptersAvailable(episodeUuid, it) }
@@ -2026,8 +2029,12 @@ open class PlaybackManager @Inject constructor(
     private var observeChaptersSkipping: Job? = null
 
     private fun onChaptersAvailable(episodeUuid: String, chapters: Chapters) {
-        val episode = (getCurrentEpisode() as? PodcastEpisode)?.takeIf { it.uuid == episodeUuid }
-        val selectedChapters = if (episode == null) {
+        // Chapter updates can finish after a different episode starts.
+        if (getCurrentEpisode()?.uuid != episodeUuid) return
+        val episode = getCurrentEpisode() as? PodcastEpisode
+        val selectedChapters = if (episode == null || player?.isRemote == true) {
+            // Never apply device-local rules to Chromecast. Preserve existing
+            // per-episode manual chapter selections on either player.
             chapters
         } else {
             Chapters(chapters.map { chapter ->
@@ -2038,13 +2045,14 @@ open class PlaybackManager @Inject constructor(
                 }
             })
         }
-        playbackStateRelay.blockingFirst().let { playbackState ->
-            playbackStateRelay.accept(playbackState.copy(chapters = selectedChapters))
-        }
+        val playbackState = playbackStateRelay.blockingFirst()
+        if (playbackState.episodeUuid != episodeUuid) return
+        playbackStateRelay.accept(playbackState.copy(chapters = selectedChapters))
         observeChaptersSkipping?.cancel()
         observeChaptersSkipping = playbackStateRelay.asFlow()
             .map { it.positionMs.milliseconds }
             .onEach { position ->
+                if (getCurrentEpisode()?.uuid != episodeUuid) return@onEach
                 val currentChapter = selectedChapters.firstOrNull { position in it }
                 if (currentChapter?.selected == false) {
                     skipToNextSelectedOrLastChapter()

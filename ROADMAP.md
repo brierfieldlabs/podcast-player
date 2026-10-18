@@ -77,8 +77,10 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   Matching chapter entries are treated as unselected in the existing playback
   chapter-skip mechanism, without introducing another media player or cloud
   service. The underlying episode-specific chapter selection and Pocket Casts
-  protocol remain unchanged. The web player does not inherit these local
-  chapter skip rules. [#13](../../issues/13)
+  protocol remain unchanged. The web player and Chromecast do not inherit
+  these local chapter-title rules. The chapter observer is cancelled when
+  episodes change and checks the active episode again before applying a seek,
+  so a late update cannot advance the next episode. [#13](../../issues/13)
 - UK English and Podcast Addict-familiar wording without changing Pocket Casts
   protocol fields or falsely relabelling deletion. [#16](../../issues/16)
 - Purple app icon, the name **Podcast Player**, reviewable upstream updates.
