@@ -121,7 +121,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -972,7 +971,11 @@ open class PlaybackManager @Inject constructor(
             }
     }
 
-    fun playEpisodes(episodes: List<BaseEpisode>, sourceView: SourceView = SourceView.UNKNOWN) {
+    fun playEpisodes(
+        episodes: List<BaseEpisode>,
+        sourceView: SourceView = SourceView.UNKNOWN,
+        replaceQueue: Boolean = false,
+    ) {
         if (episodes.isEmpty()) {
             return
         }
@@ -980,8 +983,12 @@ open class PlaybackManager @Inject constructor(
         launch {
             val topEpisode = episodes.first()
             playNowSync(episode = topEpisode, sourceView = sourceView)
-            if (episodes.size > 1) {
-                upNextQueue.clearAndPlayAll(episodes.slice(1 until min(episodes.size, settings.getMaxUpNextEpisodes())))
+            if (episodes.size > 1 || replaceQueue) {
+                // Explicit single-episode podcast playback must not resume an
+                // unrelated old Up Next list after the selected episode.
+                upNextQueue.clearAndPlayAll(
+                    episodes.drop(1).take((settings.getMaxUpNextEpisodes() - 1).coerceAtLeast(0)),
+                )
             }
         }
     }

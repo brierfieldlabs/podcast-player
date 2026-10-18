@@ -330,13 +330,13 @@ class PodcastsViewModel @AssistedInject constructor(
         selectPodcastForAutoPlay(oldest.podcastUuid)
         // Start listening now. With continuous playback enabled, the next
         // unfinished episode will follow from this podcast automatically.
-        playbackManager.playEpisodes(listOf(oldest), SourceView.PODCAST_LIST)
+        playbackManager.playEpisodes(listOf(oldest), SourceView.PODCAST_LIST, replaceQueue = true)
     }
 
     fun playUnfinishedOldestFirst(episodes: List<PodcastEpisode>) {
         if (episodes.isEmpty()) return
         selectPodcastForAutoPlay(episodes.first().podcastUuid)
-        playbackManager.playEpisodes(episodes.take(settings.getMaxUpNextEpisodes()), SourceView.PODCAST_LIST)
+        playbackManager.playEpisodes(episodes.take(settings.getMaxUpNextEpisodes()), SourceView.PODCAST_LIST, replaceQueue = true)
     }
 
     /**

@@ -484,6 +484,7 @@ class PodcastViewModel @Inject constructor(
         playbackManager.playEpisodes(
             chronological.drop(start).take(settings.getMaxUpNextEpisodes()),
             sourceView = SourceView.PODCAST_SCREEN,
+            replaceQueue = true,
         )
         return true
     }
@@ -498,7 +499,7 @@ class PodcastViewModel @Inject constructor(
             .orEmpty()
         if (episodes.isEmpty()) return false
         selectPodcastForAutoPlay(episodes.first().podcastUuid)
-        playbackManager.playEpisodes(episodes, sourceView = SourceView.PODCAST_SCREEN)
+        playbackManager.playEpisodes(episodes, sourceView = SourceView.PODCAST_SCREEN, replaceQueue = true)
         return true
     }
 
