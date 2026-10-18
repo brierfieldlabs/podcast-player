@@ -94,8 +94,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   chain; it does not introduce another player, server or subscription.
   Mono's on/off flag is cached for audio-thread reads. With both EQ and volume
   boost off, Android EQ creation and band reconfiguration are avoided. EQ
-  support depends on Android hardware; mono downmix applies to 16-bit stereo
-  PCM but leaves other audio formats alone. Casting and the Kitchen Hub web
+  support depends on Android hardware; mono downmix applies to 16-bit and
+  floating-point stereo PCM, leaving unsupported and multichannel formats
+  unchanged. Casting and the Kitchen Hub web
   player are unchanged. Bluetooth and on-device audio compatibility must be
   checked during acceptance. [#12](../../issues/12)
 - **Recurring chapter-title skipping (source implemented, unverified):**
@@ -148,6 +149,14 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   focused compilation when needed, and produce one exact-head signed build
   only once the feature batch is approved for on-device acceptance.
   [#19](../../issues/19)
+- **2026-10-18 focused compilation:** the offline
+  `:modules:services:repositories:compileDebugKotlin` task **passed**, including
+  Android playback, float/16-bit dual-mono and download repository sources
+  (159 tasks completed/from cache). The wider repositories + podcasts + player
+  + settings attempt was blocked before compilation by an *uncached upstream*
+  `sh.calvin.reorderable:reorderable-android-debug:3.1.0` artefact. Those
+  feature modules, the complete APK and real-phone playback are **not yet
+  verified**. No APK was built, installed or released.
 - Verify the existing Android application ID, certificate and sync still work
   before switching your phone from PodcastGPT v1.1.0.
 - Preserve existing Podcast Addict data and the user's Pocket Casts login.
