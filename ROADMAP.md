@@ -5,6 +5,13 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 
 ## Accepted decisions
 
+- **Queue terminology:** The running list previously displayed as **Up Next**
+  is now **Playlist** in UK/default English UI strings, menu actions, settings,
+  accessibility text and Android media-session queue title. This is a label
+  change only. Underlying Pocket Casts up_next identifiers, persistence,
+  existing signed app identity and web-sync behaviour are unchanged. The
+  existing separately saved/smart **Playlists** feature is not renamed or
+  merged with the listening queue. [#16](../../issues/16)
 - **Playback A:** Select a podcast or its oldest unfinished episode and continue
   through newer unfinished episodes in chronological order without manual
   playlist construction. The ordinary Play controls also need to support this

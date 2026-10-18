@@ -323,8 +323,8 @@ private fun ResetUpNextSortTooltip(
     modifier: Modifier = Modifier,
 ) {
     SettingRow(
-        primaryText = "Show Up Next sort tooltip",
-        secondaryText = "Show the \"Sort by Duration\" tooltip on the Up Next tab again",
+        primaryText = "Show Playlist sort tooltip",
+        secondaryText = "Show the \"Sort by Duration\" tooltip on the Playlist tab again",
         icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.PlaylistPlay),
         modifier = modifier.clickable { onClick() },
     )

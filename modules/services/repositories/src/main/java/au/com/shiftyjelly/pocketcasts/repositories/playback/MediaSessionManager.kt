@@ -1065,7 +1065,7 @@ class MediaSessionManager(
 
     private fun updateUpNext(upNext: UpNextQueue.State, useEpisodeArtwork: Boolean) {
         try {
-            mediaSession?.setQueueTitle("Up Next")
+            mediaSession?.setQueueTitle(context.getString(LR.string.up_next))
             if (upNext is UpNextQueue.State.Loaded) {
                 updateMetadata(upNext.episode, useEpisodeArtwork)
 

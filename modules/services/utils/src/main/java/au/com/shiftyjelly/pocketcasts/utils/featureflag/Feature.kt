@@ -209,7 +209,7 @@ enum class Feature(
     ),
     UP_NEXT_SYNC_PROTOBUF(
         key = "up_next_sync_protobuf",
-        title = "Up Next sync with Protocol Buffers",
+        title = "Playlist sync with Protocol Buffers",
         defaultValue = isDebugOrPrototypeBuild,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,
@@ -308,7 +308,7 @@ enum class Feature(
     ),
     UP_NEXT_SORT(
         key = "up_next_sort",
-        title = "Up Next sort by duration",
+        title = "Playlist sort by duration",
         defaultValue = isDebugOrPrototypeBuild,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,
