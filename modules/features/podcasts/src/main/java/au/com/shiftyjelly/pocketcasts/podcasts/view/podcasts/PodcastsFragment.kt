@@ -590,7 +590,14 @@ class PodcastsFragment :
                     } else if (item.itemId == MENU_PLAY_OLDEST) {
                         viewModel.playOldestUnfinished(episodes)
                     } else {
-                        viewModel.addUnfinishedToUpNext(episodes, playNext = false)
+                        val added = viewModel.addUnfinishedToUpNext(episodes)
+                        showSnackBar(
+                            if (added == 0) {
+                                getString(LR.string.podcast_player_queue_none)
+                            } else {
+                                getString(LR.string.podcast_player_queued_count, added)
+                            },
+                        )
                     }
                 }
 

@@ -273,15 +273,22 @@ class PodcastsViewModel @AssistedInject constructor(
         episodeManager.findEpisodesByPodcastOrdered(podcast)
             .filter { !it.isFinished && !it.isArchived }
 
-    fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>, playNext: Boolean) {
-        val limit = settings.getMaxUpNextEpisodes()
-        val count = if (playNext) 1 else limit
-        val newEpisodes = episodes.filterNot { playbackManager.upNextQueue.contains(it.uuid) }.take(count)
-        if (playNext) {
-            playbackManager.playEpisodesNext(newEpisodes, SourceView.PODCAST_LIST)
-        } else {
+    fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>): Int {
+        val queue = playbackManager.upNextQueue
+        val alreadyQueued = queue.queueEpisodes.mapTo(mutableSetOf()) { it.uuid }
+        queue.currentEpisode?.uuid?.let(alreadyQueued::add)
+        val room = (settings.getMaxUpNextEpisodes() - queue.queueEpisodes.size).coerceAtLeast(0)
+        if (room == 0) return 0
+
+        val newEpisodes = episodes.asSequence()
+            .filter { !it.isFinished && !it.isArchived }
+            .filter { alreadyQueued.add(it.uuid) }
+            .take(room)
+            .toList()
+        if (newEpisodes.isNotEmpty()) {
             playbackManager.playEpisodesLast(newEpisodes, SourceView.PODCAST_LIST)
         }
+        return newEpisodes.size
     }
 
     // Queue across podcasts from fewest unfinished first, with each podcast's

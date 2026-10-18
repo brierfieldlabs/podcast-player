@@ -24,10 +24,15 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   clears the queue. The podcast autoplay selector now
   follows unfinished episodes **oldest to newest regardless of grid sorting**
   and stops when the podcast has no newer unfinished episodes, rather than
-  wrapping back to the first episode. [#9](../../issues/9)
+  wrapping back to the first episode. If the current podcast episode has been
+  deleted or is otherwise missing, it stops safely instead of restarting at
+  the oldest unfinished episode. [#9](../../issues/9)
 - **Playback B:** Sort podcasts by fewest unfinished episodes; add unfinished
   episodes to a listening queue in ascending count order, and oldest first
-  inside each podcast. Preserve existing Up Next. [#10](../../issues/10)
+  inside each podcast. Preserve existing Up Next. The per-podcast **Add
+  unfinished to Up Next** action also respects remaining queue capacity,
+  excludes already queued/current and dismissed episodes, and shows how many
+  were actually added. [#10](../../issues/10)
 - **Mark all played** excludes dismissed episodes, so dismissing is never
   mistaken for listening or changed by bulk playback-state actions.
 - **Dismiss / Dismissed / Restore** are the UI names for upstream

@@ -33,7 +33,7 @@
     <string name="podcast_player_play_visible_unfinished">Play unfinished episodes (oldest first)</string>
     <string name="podcast_player_queue_fewest_first">Queue library: fewest unfinished first</string>
     <string name="podcast_player_queued_count">Added %1$d episodes to Up Next</string>
-    <string name="podcast_player_queue_none">No more unfinished episodes to queue</string>
+    <string name="podcast_player_queue_none">Nothing added: no eligible episodes, already queued, or Up Next is full</string>
     <string name="podcast_player_skip_matching_chapters">Skip chapters with matching titles</string>
     <string name="podcast_player_skip_matching_chapters_hint">Chapter title words or phrases, separated by commas</string>
     <string name="podcast_player_skip_matching_chapters_explanation">Optional per-podcast chapter skipping. Enter chapter title words or phrases separated by commas. Matching chapters will be skipped during playback, including future episodes. Applies only in Podcast Player on Android; leave blank to disable.</string>
