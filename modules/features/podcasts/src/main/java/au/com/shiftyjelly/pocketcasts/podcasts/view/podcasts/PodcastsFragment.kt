@@ -122,7 +122,6 @@ class PodcastsFragment :
         private const val LAST_ORIENTATION_NOT_SET = -1
         private const val MENU_QUEUE_UNFINISHED = 1
         private const val MENU_PLAY_OLDEST = 2
-        private const val MENU_DOWNLOAD_UNFINISHED = 3
         private const val MENU_MARK_ALL_PLAYED = 4
         private const val MENU_PODCAST_SETTINGS = 5
         private const val MENU_SHARE = 6
@@ -567,8 +566,7 @@ class PodcastsFragment :
             add(0, MENU_PLAY_ALL_UNFINISHED, 0, getString(LR.string.podcast_player_play_visible_unfinished))
             add(0, MENU_QUEUE_UNFINISHED, 1, getString(LR.string.podcastgpt_queue_unfinished))
             add(0, MENU_PLAY_OLDEST, 2, getString(LR.string.podcastgpt_play_oldest))
-            add(0, MENU_DOWNLOAD_UNFINISHED, 3, getString(LR.string.podcastgpt_download_unfinished))
-            add(0, MENU_DOWNLOAD_ALL, 4, getString(LR.string.podcast_download_all))
+            add(0, MENU_DOWNLOAD_ALL, 3, getString(LR.string.podcast_download_all))
             add(0, MENU_MARK_ALL_PLAYED, 5, getString(LR.string.podcastgpt_mark_all_played))
             add(0, MENU_PODCAST_SETTINGS, 6, getString(LR.string.podcast_settings))
             add(0, MENU_SHARE, 7, getString(LR.string.share))
@@ -594,17 +592,6 @@ class PodcastsFragment :
                             episodes,
                             playNext = item.itemId == MENU_PLAY_OLDEST,
                         )
-                    }
-                }
-
-                MENU_DOWNLOAD_UNFINISHED -> viewLifecycleOwner.lifecycleScope.launch {
-                    val episodes = viewModel.unfinishedEpisodes(podcast)
-                    if (episodes.isEmpty()) {
-                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
-                    } else {
-                        ConfirmationDialog.downloadWarningDialog(episodes.size, resources) {
-                            viewModel.downloadUnfinished(episodes)
-                        }?.show(parentFragmentManager, "podcastgpt_download_unfinished")
                     }
                 }
 

@@ -66,14 +66,12 @@ class AutoDownloadEpisodeProvider @Inject constructor(
             .filter { !it.isFinished && !it.isArchived }
             .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
             .toList()
-        val alreadyAvailable = episodes.count { it.isDownloaded || it.isDownloading || it.isDownloadPending }
-        val availableSlots = (limit - alreadyAvailable).coerceAtLeast(0)
-        if (availableSlots == 0) return emptySet()
-
+        // Fill the oldest unfinished slots first. Already downloaded newer
+        // episodes remain available, but cannot displace missing older ones.
         return episodes.asSequence()
+            .take(limit)
             .filter { it.canQueueForAutoDownload }
             .filterNot { it.isDownloaded || it.isDownloading || it.isDownloadPending || it.isDownloadFailure }
-            .take(availableSlots)
             .map(PodcastEpisode::uuid)
             .toSet()
     }

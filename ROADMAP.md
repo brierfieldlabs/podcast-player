@@ -18,6 +18,8 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - **Playback B:** Sort podcasts by fewest unfinished episodes; add unfinished
   episodes to a listening queue in ascending count order, and oldest first
   inside each podcast. Preserve existing Up Next. [#10](../../issues/10)
+- **Mark all played** excludes dismissed episodes, so dismissing is never
+  mistaken for listening or changed by bulk playback-state actions.
 - **Dismiss / Dismissed / Restore** are the UI names for upstream
   archive/archive/unarchive. Dismissing doesn't change playback history,
   playback position or played status; removes episodes from active episode
@@ -33,8 +35,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - **Rolling oldest-first offline downloads (source implemented, unverified):**
   per-podcast 0-10 unfinished episodes, off by default, refill on completion and
   feed refresh. Existing downloaded/pending episodes count against the limit;
-  extras are never automatically deleted to enforce a smaller limit. Uses
-  existing automatic-download Wi-Fi, charging and storage preferences. This
+  extras are never automatically deleted to enforce a smaller limit. Newer
+  downloaded episodes cannot displace the oldest unfinished download slots.
+  Uses existing automatic-download Wi-Fi, charging and storage preferences. This
   preference is **device-local**, not part of Pocket Casts web sync.
   [#14](../../issues/14)
 - **Download all from a podcast tile (source implemented, unverified):**
@@ -43,7 +46,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   unfinished, non-dismissed episodes for offline listening. **Played**
   episodes are excluded, as are previously downloaded, already queued,
   failed and stream-only episodes. Unlike the existing **Download unfinished**
-  bulk action, this has no silent 100-episode cutoff. It uses the native
+  bulk action, this has no silent 100-episode cutoff. The duplicate capped
+  **Download unfinished** option is removed from the tile menu, leaving one
+  clear **Download all** action for all unplayed episodes. It uses the native
   automatic-download Wi-Fi, charging and storage constraints; confirm
   downloads have completed before travelling. [#21](../../issues/21)
 - **Title exclusions (source implemented, unverified):** a per-podcast list of

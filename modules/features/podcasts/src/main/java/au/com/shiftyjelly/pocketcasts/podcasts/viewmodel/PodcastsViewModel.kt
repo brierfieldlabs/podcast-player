@@ -269,7 +269,8 @@ class PodcastsViewModel @AssistedInject constructor(
             .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
 
     suspend fun episodesNotPlayed(podcast: Podcast): List<PodcastEpisode> =
-        episodeManager.findEpisodesByPodcastOrdered(podcast).filter { !it.isFinished }
+        episodeManager.findEpisodesByPodcastOrdered(podcast)
+            .filter { !it.isFinished && !it.isArchived }
 
     fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>, playNext: Boolean) {
         val limit = settings.getMaxUpNextEpisodes()
@@ -344,11 +345,6 @@ class PodcastsViewModel @AssistedInject constructor(
             DownloadType.Automatic(bypassAutoDownloadStatus = true),
             SourceView.PODCAST_LIST,
         )
-    }
-
-    fun downloadUnfinished(episodes: List<PodcastEpisode>) {
-        val uuids = episodes.take(Settings.MAX_DOWNLOAD).map(PodcastEpisode::uuid)
-        downloadQueue.enqueueAll(uuids, DownloadType.UserTriggered(waitForWifi = false), SourceView.PODCAST_LIST)
     }
 
     fun markEpisodesPlayed(episodes: List<PodcastEpisode>) {
