@@ -14,8 +14,11 @@ changes. The original source acknowledgements and
 - [Roadmap and accepted behaviour](ROADMAP.md)
 - [Feature issues](https://github.com/brierfieldlabs/podcast-player/issues)
 - [Pending development PRs](https://github.com/brierfieldlabs/podcast-player/pulls)
-- Latest installed APK: **PodcastGPT v1.1.0** (until a new release is approved).
-- In-progress development version: **1.2.0**. Version numbers are semantic;
+- Last trial APK: **Podcast Player v1.2.0**, reported on a phone as
+  **PodcastGPT** because the Android build-variant launcher label was missed.
+- Correction candidate: **v1.2.1**, with launcher, application, and Android
+  intent chooser labels set to **Podcast Player**. No data migration involved.
+  Version numbers are semantic;
   development commits do not automatically result in APK builds or releases.
 
 **Protect existing installs:** Keep the established Android application ID and

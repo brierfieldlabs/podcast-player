@@ -1,6 +1,6 @@
 # Podcast Player Roadmap
 
-Version in development: **v1.2.0**. User-facing releases use SemVer only, not
+Version in development: **v1.2.1**. User-facing releases use SemVer only, not
 `test`, `rc` or an automated APK per commit.
 
 ## Accepted decisions
@@ -131,8 +131,13 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - UK English and Podcast Addict-familiar wording without changing Pocket Casts
   protocol fields or falsely relabelling deletion. [#16](../../issues/16)
 - Purple app icon, the name **Podcast Player**, reviewable upstream updates.
-  Preserve the current signed Android app identity for in-place updates.
-  [#8](../../issues/8)
+  The v1.2.0 trial incorrectly displayed PodcastGPT because its debugProd
+  (and debug) source-set launcher-name override was missed despite the shared
+  localisation already saying Podcast Player. v1.2.1 corrects all app-variant
+  launcher labels and the RSS intent chooser label; the APK verification
+  workflow now checks the Android application label to prevent a recurrence.
+  Keep the existing Android application ID and signing certificate for
+  in-place updates. [#8](../../issues/8)
 - **No Podcast Addict history import yet.** Podcast Addict remains the daily,
   authoritative library. The 2026-10-17 .backup in IdeaPad Downloads is a
   privately held read-only format sample, **not** migration authority.
@@ -166,9 +171,11 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
 - Keep changes in reviewable PRs, reconcile issues and merge accepted changes
   into `main` rather than proliferating permanent branches.
 - Do **not** run repeated full APK builds during feature development.
-  The GitHub Actions APK workflow is manually disabled. Use source checks or
-  focused compilation when needed, and produce one exact-head signed build
-  only once the feature batch is approved for on-device acceptance.
+  The GitHub Actions APK workflow is manually disabled between approved trials.
+  Make a corrective v1.2.1 build for the verified wrong launcher-name
+  regression, and return the workflow to disabled afterwards. Use source
+  checks or focused compilation for ordinary changes, with one exact-head
+  signed build for each approved phone trial.
   [#19](../../issues/19)
 - **2026-10-18 focused compilation:** the offline
   `:modules:services:repositories:compileDebugKotlin` task **passed**, including

@@ -51,6 +51,9 @@ jobs:
           apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
           package=$("$aapt" dump badging "$apk" | grep "^package:")
           echo "$package"
+          label=$("$aapt" dump badging "$apk" | grep "^application-label:")
+          echo "$label"
+          grep -Fx "application-label:'Podcast Player'" <<< "$label"
           grep -F "name='au.com.shiftyjelly.pocketcasts.debug'" <<< "$package"
           version=$(tr -d '\r\n' < podcast-player.version)
           grep -F "versionName='$version'" <<< "$package"

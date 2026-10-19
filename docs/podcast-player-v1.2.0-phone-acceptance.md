@@ -1,4 +1,4 @@
-# Podcast Player v1.2.0 phone acceptance
+# Podcast Player phone acceptance (v1.2.1 correction trial)
 
 **Status:** Awaiting user testing. This is a trial APK, not approval to release publicly,
 merge unverified changes, or migrate Podcast Addict history.
@@ -9,7 +9,7 @@ Podcast Player during this test.
 
 ## Before installing
 
-- Confirm the APK says **Podcast Player v1.2.0** and is provided by the
+- Confirm the APK says **Podcast Player v1.2.1** and is provided by the
   Brierfield Labs GitHub build of the approved development commit.
 - Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
   installation, not a replacement that requires uninstalling or clearing data.
