@@ -11,14 +11,13 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
  * the user has explicitly requested these episodes. WorkManager still applies
  * the configured Wi-Fi, charging and storage constraints when they are queued.
  */
-fun List<PodcastEpisode>.eligibleForOfflineDownload(): List<PodcastEpisode> =
-    asSequence()
-        .filterNot {
-            it.isFinished || it.isArchived || it.isDownloaded || it.isDownloading ||
-                it.isDownloadPending || it.isHlsOnly || it.isDownloadFailure
-        }
-        .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
-        .toList()
+fun List<PodcastEpisode>.eligibleForOfflineDownload(): List<PodcastEpisode> = asSequence()
+    .filterNot {
+        it.isFinished || it.isArchived || it.isDownloaded || it.isDownloading ||
+            it.isDownloadPending || it.isHlsOnly || it.isDownloadFailure
+    }
+    .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+    .toList()
 
 /**
  * Revalidate a confirmed bulk-download selection against fresh episode state.

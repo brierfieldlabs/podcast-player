@@ -145,7 +145,9 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   feed, episode and listening-history tables and rejects unreadable backups
   without touching the user's database or syncing anything. The inspector is
   source-only with a **read-only Import & Export preview interface** now
-  implemented (uncompiled). The newer 2026-10-18 manually created backup
+  implemented and Kotlin-compiled, but **no migration may be carried out**
+  until after the separate phone-acceptance and migration-approval gates.
+  The newer 2026-10-18 manually created backup
   passed ZIP integrity and full SQLite integrity checks, including all four
   relevant table scans, but should still be treated as a private reference.
   The preview compares exact RSS feed URLs to currently subscribed feeds and
@@ -197,5 +199,6 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
    chapter skips, EQ, mono and the remaining per-podcast override details.
 4. Review terminology, icon, performance and remaining requested features.
 5. Confirm source validation, review PRs, then approve a single phone APK.
+   Validate it against [the v1.2.0 phone acceptance checklist](docs/podcast-player-v1.2.0-phone-acceptance.md).
 6. Only after the player is accepted: design, preview, and separately approve
    the Podcast Addict full-history import.

@@ -17,31 +17,24 @@ class PodcastPlayerPodcastPreferences @Inject constructor(
 ) {
     private val preferences = context.getSharedPreferences("podcast_player_downloads", Context.MODE_PRIVATE)
 
-    fun rollingLimit(podcastUuid: String): Int =
-        preferences.getInt("rolling_$podcastUuid", 0).coerceIn(0, MAX_ROLLING_DOWNLOADS)
+    fun rollingLimit(podcastUuid: String): Int = preferences.getInt("rolling_$podcastUuid", 0).coerceIn(0, MAX_ROLLING_DOWNLOADS)
 
     fun setRollingLimit(podcastUuid: String, limit: Int) {
         require(limit in 0..MAX_ROLLING_DOWNLOADS)
         preferences.edit().putInt("rolling_$podcastUuid", limit).apply()
     }
 
-    fun excludedTitles(podcastUuid: String): String =
-        preferences.getString("excluded_$podcastUuid", "").orEmpty()
+    fun excludedTitles(podcastUuid: String): String = preferences.getString("excluded_$podcastUuid", "").orEmpty()
 
-    fun setExcludedTitles(podcastUuid: String, value: String): String =
-        saveTerms("excluded_$podcastUuid", value)
+    fun setExcludedTitles(podcastUuid: String, value: String): String = saveTerms("excluded_$podcastUuid", value)
 
-    fun matchesExcludedTitle(podcastUuid: String, episodeTitle: String): Boolean =
-        matchesTerms(excludedTitles(podcastUuid), episodeTitle)
+    fun matchesExcludedTitle(podcastUuid: String, episodeTitle: String): Boolean = matchesTerms(excludedTitles(podcastUuid), episodeTitle)
 
-    fun skippedChapterTitles(podcastUuid: String): String =
-        preferences.getString("skip_chapters_$podcastUuid", "").orEmpty()
+    fun skippedChapterTitles(podcastUuid: String): String = preferences.getString("skip_chapters_$podcastUuid", "").orEmpty()
 
-    fun setSkippedChapterTitles(podcastUuid: String, value: String): String =
-        saveTerms("skip_chapters_$podcastUuid", value)
+    fun setSkippedChapterTitles(podcastUuid: String, value: String): String = saveTerms("skip_chapters_$podcastUuid", value)
 
-    fun matchesSkippedChapterTitle(podcastUuid: String, chapterTitle: String): Boolean =
-        matchesTerms(skippedChapterTitles(podcastUuid), chapterTitle)
+    fun matchesSkippedChapterTitle(podcastUuid: String, chapterTitle: String): Boolean = matchesTerms(skippedChapterTitles(podcastUuid), chapterTitle)
 
     private fun saveTerms(key: String, value: String): String {
         val cleaned = value.split(',')
@@ -53,11 +46,10 @@ class PodcastPlayerPodcastPreferences @Inject constructor(
         return cleaned
     }
 
-    private fun matchesTerms(terms: String, title: String): Boolean =
-        terms.split(',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .any { phrase -> title.contains(phrase, ignoreCase = true) }
+    private fun matchesTerms(terms: String, title: String): Boolean = terms.split(',')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .any { phrase -> title.contains(phrase, ignoreCase = true) }
 
     companion object {
         const val MAX_ROLLING_DOWNLOADS = 10

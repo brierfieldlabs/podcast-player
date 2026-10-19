@@ -246,9 +246,15 @@ class FolderAdapter(
         fun bind(podcast: Podcast, badgeType: BadgeType, podcastUuidToBadge: Map<String, Int>, clickListener: ClickListener) {
             boundPodcastUuid = podcast.uuid
             button?.setOnClickListener { clickListener.onPodcastClick(podcast, itemView) }
-            button?.setOnLongClickListener { clickListener.onPodcastLongClick(podcast, itemView); true }
+            button?.setOnLongClickListener {
+                clickListener.onPodcastLongClick(podcast, itemView)
+                true
+            }
             podcastCardView?.setOnClickListener { clickListener.onPodcastClick(podcast, itemView) }
-            podcastCardView?.setOnLongClickListener { clickListener.onPodcastLongClick(podcast, itemView); true }
+            podcastCardView?.setOnLongClickListener {
+                clickListener.onPodcastLongClick(podcast, itemView)
+                true
+            }
             podcastTitle.text = podcast.title
             podcastTitle.showIf(isListLayout)
             author?.text = podcast.author

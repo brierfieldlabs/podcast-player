@@ -2,8 +2,8 @@ package au.com.shiftyjelly.pocketcasts.settings
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.net.Uri
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
@@ -194,11 +194,14 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         result.ambiguousFeedMatches,
                     ) + "\n\n" + getString(LR.string.podcast_player_backup_preview_disclaimer)
                 }
+
                 is PodcastAddictBackupInspector.Result.Rejected -> when (result.reason) {
                     PodcastAddictBackupInspector.Reason.MissingFeedUrls ->
                         getString(LR.string.podcast_player_backup_preview_no_feeds)
+
                     PodcastAddictBackupInspector.Reason.BackupTooLarge ->
                         getString(LR.string.podcast_player_backup_preview_too_large)
+
                     else -> getString(LR.string.podcast_player_backup_preview_rejected)
                 }
             }

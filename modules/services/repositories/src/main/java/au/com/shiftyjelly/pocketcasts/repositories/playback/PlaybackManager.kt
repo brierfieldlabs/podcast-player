@@ -2052,13 +2052,15 @@ open class PlaybackManager @Inject constructor(
             // per-episode manual chapter selections on either player.
             chapters
         } else {
-            Chapters(chapters.map { chapter ->
-                if (podcastPlayerPreferences.matchesSkippedChapterTitle(episode.podcastUuid, chapter.title)) {
-                    chapter.copy(selected = false)
-                } else {
-                    chapter
-                }
-            })
+            Chapters(
+                chapters.map { chapter ->
+                    if (podcastPlayerPreferences.matchesSkippedChapterTitle(episode.podcastUuid, chapter.title)) {
+                        chapter.copy(selected = false)
+                    } else {
+                        chapter
+                    }
+                },
+            )
         }
         val playbackState = playbackStateRelay.blockingFirst()
         if (playbackState.episodeUuid != episodeUuid) return

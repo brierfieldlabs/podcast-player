@@ -52,7 +52,9 @@ class AutoPlaySelector @Inject constructor(
                 // a safe chronological anchor. Never restart the podcast from
                 // its oldest unfinished episode in that situation.
                 currentEpisodeIndex == -1 && stopAtPodcastEnd -> null
+
                 currentEpisodeIndex == -1 -> episodes.firstOrNull()
+
                 else -> episodes.getOrNull(currentEpisodeIndex + 1)
                     ?: if (stopAtPodcastEnd) null else episodes.firstOrNull()?.takeIf { it.uuid != currentEpisodeUuid }
             }

@@ -374,8 +374,11 @@ internal fun PodcastSettingsHomePage(
             title = {
                 Text(
                     stringResource(
-                        if (isChapterRule) LR.string.podcast_player_skip_matching_chapters
-                        else LR.string.podcast_player_excluded_titles,
+                        if (isChapterRule) {
+                            LR.string.podcast_player_skip_matching_chapters
+                        } else {
+                            LR.string.podcast_player_excluded_titles
+                        },
                     ),
                 )
             },
@@ -383,8 +386,11 @@ internal fun PodcastSettingsHomePage(
                 Column {
                     Text(
                         stringResource(
-                            if (isChapterRule) LR.string.podcast_player_skip_matching_chapters_explanation
-                            else LR.string.podcast_player_excluded_titles_explanation,
+                            if (isChapterRule) {
+                                LR.string.podcast_player_skip_matching_chapters_explanation
+                            } else {
+                                LR.string.podcast_player_excluded_titles_explanation
+                            },
                         ),
                     )
                     OutlinedTextField(
@@ -393,8 +399,11 @@ internal fun PodcastSettingsHomePage(
                         label = {
                             Text(
                                 stringResource(
-                                    if (isChapterRule) LR.string.podcast_player_skip_matching_chapters_hint
-                                    else LR.string.podcast_player_excluded_titles_hint,
+                                    if (isChapterRule) {
+                                        LR.string.podcast_player_skip_matching_chapters_hint
+                                    } else {
+                                        LR.string.podcast_player_excluded_titles_hint
+                                    },
                                 ),
                             )
                         },

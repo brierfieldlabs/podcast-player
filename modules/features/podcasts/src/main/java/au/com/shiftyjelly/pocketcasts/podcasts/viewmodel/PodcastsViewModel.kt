@@ -265,14 +265,12 @@ class PodcastsViewModel @AssistedInject constructor(
         }
     }
 
-    suspend fun unfinishedEpisodes(podcast: Podcast): List<PodcastEpisode> =
-        episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
-            .filter { !it.isFinished && !it.isArchived }
-            .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+    suspend fun unfinishedEpisodes(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+        .filter { !it.isFinished && !it.isArchived }
+        .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
 
-    suspend fun episodesNotPlayed(podcast: Podcast): List<PodcastEpisode> =
-        episodeManager.findEpisodesByPodcastOrdered(podcast)
-            .filter { !it.isFinished && !it.isArchived }
+    suspend fun episodesNotPlayed(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrdered(podcast)
+        .filter { !it.isFinished && !it.isArchived }
 
     fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>): Int {
         val queue = playbackManager.upNextQueue
