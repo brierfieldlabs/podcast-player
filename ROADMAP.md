@@ -20,14 +20,14 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   for **new phone preference records**; explicit existing preferences win,
   and queued episodes still take precedence. **Play oldest** on the podcast
   tile now really begins playing the oldest unfinished episode instead of
-  just adding it to Up Next; it sets the chosen podcast as the continuing
-  autoplay source, while **Add unfinished to Up Next** preserves the queue.
+  just adding it to Playlist; it sets the chosen podcast as the continuing
+  autoplay source, while **Add unfinished to Playlist** preserves the queue.
   The explicit **Play unfinished episodes** and **Play from here** controls
   also select the current podcast as the future autoplay source and clear an
-  unrelated old Up Next queue, even when the selected podcast has only one
+  unrelated old Playlist, even when the selected podcast has only one
   unfinished episode. The autoplay source is set **after** queue operations
   because Pocket Casts clears remembered sources when inserting episodes.
-  The separate **Add unfinished to Up Next** action never
+  The separate **Add unfinished to Playlist** action never
   clears the queue. The podcast autoplay selector now
   follows unfinished episodes **oldest to newest regardless of grid sorting**
   and stops when the podcast has no newer unfinished episodes, rather than
@@ -36,8 +36,8 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   the oldest unfinished episode. [#9](../../issues/9)
 - **Playback B:** Sort podcasts by fewest unfinished episodes; add unfinished
   episodes to a listening queue in ascending count order, and oldest first
-  inside each podcast. Preserve existing Up Next. The per-podcast **Add
-  unfinished to Up Next** action also respects remaining queue capacity,
+  inside each podcast. Preserve existing Playlist. The per-podcast **Add
+  unfinished to Playlist** action also respects remaining queue capacity,
   excludes already queued/current and dismissed episodes, and shows how many
   were actually added. [#10](../../issues/10)
 - **Mark all played** excludes dismissed episodes, so dismissing is never
@@ -82,8 +82,12 @@ Version in development: **v1.2.0**. User-facing releases use SemVer only, not
   clear **Download all** action for all unplayed episodes. The podcast screen's
   own Download all option now follows the same selection and confirmation,
   rather than downloading archived/played items and stopping after 100. It uses the native
-  automatic-download Wi-Fi, charging and storage constraints; confirm
-  downloads have completed before travelling. [#21](../../issues/21)
+  automatic-download Wi-Fi, charging and storage constraints. Immediately
+  before enqueueing, both podcast tile and podcast screen actions re-read
+  current database state and intersect it with the user-confirmed IDs, so
+  items played, dismissed or already queued since opening the dialog are
+  excluded; newly arrived episodes are not silently added. Confirm downloads
+  have completed before travelling. [#21](../../issues/21)
 - **Title exclusions (source implemented, unverified):** a per-podcast list of
   comma-separated words or phrases automatically dismisses matching **new**
   feed episodes before queueing/downloading. Existing episodes aren't bulk

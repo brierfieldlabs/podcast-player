@@ -35,6 +35,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
 import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.confirmedOfflineDownloadUuids
 import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
@@ -520,12 +521,19 @@ class PodcastViewModel @Inject constructor(
     }
 
     fun downloadAll(episodes: List<PodcastEpisode>) {
-        if (episodes.isEmpty()) return
-        downloadQueue.enqueueAll(
-            episodes.map(PodcastEpisode::uuid),
-            DownloadType.Automatic(bypassAutoDownloadStatus = true),
-            SourceView.PODCAST_SCREEN,
-        )
+        val first = episodes.firstOrNull() ?: return
+        val confirmedUuids = episodes.mapTo(mutableSetOf()) { it.uuid }
+        launch(Dispatchers.IO) {
+            val podcast = podcastManager.findPodcastByUuid(first.podcastUuid) ?: return@launch
+            val stillEligible = episodeManager.confirmedOfflineDownloadUuids(podcast, confirmedUuids)
+            if (stillEligible.isNotEmpty()) {
+                downloadQueue.enqueueAll(
+                    stillEligible,
+                    DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                    SourceView.PODCAST_SCREEN,
+                )
+            }
+        }
     }
 
     suspend fun getFolder(): Folder? {

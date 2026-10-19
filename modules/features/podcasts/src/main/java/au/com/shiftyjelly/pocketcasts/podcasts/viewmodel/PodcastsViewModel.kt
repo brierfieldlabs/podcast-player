@@ -14,6 +14,7 @@ import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.BadgeType
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.confirmedOfflineDownloadUuids
 import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
@@ -347,14 +348,19 @@ class PodcastsViewModel @AssistedInject constructor(
     }
 
     fun downloadAllForOffline(episodes: List<PodcastEpisode>) {
-        if (episodes.isEmpty()) return
-        // Unlike upstream's quick bulk action, this must not silently stop at
-        // 100. Reuse WorkManager's Wi-Fi, power and storage safeguards.
-        downloadQueue.enqueueAll(
-            episodes.map(PodcastEpisode::uuid),
-            DownloadType.Automatic(bypassAutoDownloadStatus = true),
-            SourceView.PODCAST_LIST,
-        )
+        val first = episodes.firstOrNull() ?: return
+        val confirmedUuids = episodes.mapTo(mutableSetOf()) { it.uuid }
+        viewModelScope.launch(Dispatchers.IO) {
+            val podcast = podcastManager.findPodcastByUuid(first.podcastUuid) ?: return@launch
+            val stillEligible = episodeManager.confirmedOfflineDownloadUuids(podcast, confirmedUuids)
+            if (stillEligible.isNotEmpty()) {
+                downloadQueue.enqueueAll(
+                    stillEligible,
+                    DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                    SourceView.PODCAST_LIST,
+                )
+            }
+        }
     }
 
     fun markEpisodesPlayed(episodes: List<PodcastEpisode>) {
