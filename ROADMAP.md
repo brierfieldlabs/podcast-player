@@ -5,6 +5,14 @@ Version in development: **v1.2.1**. User-facing releases use SemVer only, not
 
 ## Accepted decisions
 
+- **Individual podcast episode lists (#23):** oldest-to-newest is the initial
+  display order for new and existing subscriptions without a locally recorded
+  manual sorting choice. The podcast sort menu reflects the actual display,
+  and explicitly chosen newest-first or other orders remain available. This
+  local presentation fallback preserves server-synced podcast history and
+  previously recorded manual overrides. Phone acceptance on 2.5 Admins and
+  other feeds remains pending.
+
 - **Queue terminology:** The running list previously displayed as **Up Next**
   is now **Playlist** in UK/default English UI strings, menu actions, settings,
   accessibility text and Android media-session queue title. This is a label

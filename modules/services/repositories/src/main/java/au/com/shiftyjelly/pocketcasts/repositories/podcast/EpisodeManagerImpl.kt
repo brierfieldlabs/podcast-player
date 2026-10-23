@@ -135,7 +135,7 @@ class EpisodeManagerImpl @Inject constructor(
     }
 
     override fun findEpisodesByPodcastOrderedBlocking(podcast: Podcast): List<PodcastEpisode> {
-        return when (podcast.episodesSortType) {
+        return when (podcast.effectiveEpisodesSortType) {
             EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC -> episodeDao.findByPodcastOrderTitleAscBlocking(podcastUuid = podcast.uuid)
             EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC -> episodeDao.findByPodcastOrderTitleDescBlocking(podcastUuid = podcast.uuid)
             EpisodesSortType.EPISODES_SORT_BY_DATE_ASC -> episodeDao.findByPodcastOrderPublishedDateAscBlocking(podcastUuid = podcast.uuid)
@@ -146,7 +146,7 @@ class EpisodeManagerImpl @Inject constructor(
     }
 
     override suspend fun findEpisodesByPodcastOrdered(podcast: Podcast): List<PodcastEpisode> {
-        return when (podcast.episodesSortType) {
+        return when (podcast.effectiveEpisodesSortType) {
             EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC -> episodeDao.findByPodcastOrderTitleAsc(podcastUuid = podcast.uuid)
             EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC -> episodeDao.findByPodcastOrderTitleDesc(podcastUuid = podcast.uuid)
             EpisodesSortType.EPISODES_SORT_BY_DATE_ASC -> episodeDao.findByPodcastOrderPublishedDateAsc(podcastUuid = podcast.uuid)
@@ -157,7 +157,7 @@ class EpisodeManagerImpl @Inject constructor(
     }
 
     override fun findEpisodesByPodcastOrderedFlow(podcast: Podcast): Flow<List<PodcastEpisode>> {
-        return when (podcast.episodesSortType) {
+        return when (podcast.effectiveEpisodesSortType) {
             EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC -> episodeDao.findByPodcastOrderTitleAscFlow(podcastUuid = podcast.uuid)
             EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC -> episodeDao.findByPodcastOrderTitleDescFlow(podcastUuid = podcast.uuid)
             EpisodesSortType.EPISODES_SORT_BY_DATE_ASC -> episodeDao.findByPodcastOrderPublishedDateAscFlow(podcastUuid = podcast.uuid)

@@ -464,32 +464,32 @@ class PodcastFragment : BaseFragment() {
         val dialog = OptionsDialog()
             .addCheckedOption(
                 titleId = LR.string.episode_sort_title_a_z,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC,
+                checked = viewModel.podcast.value?.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC,
                 click = sortEpisodesTitleAZ,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_title_z_a,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC,
+                checked = viewModel.podcast.value?.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC,
                 click = sortEpisodesTitleZA,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_newest_to_oldest,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC,
+                checked = viewModel.podcast.value?.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC,
                 click = sortEpisodesNewestToOldest,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_oldest_to_newest,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_ASC,
+                checked = viewModel.podcast.value?.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_ASC,
                 click = sortEpisodesOldestToNewest,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_short_to_long,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_ASC,
+                checked = viewModel.podcast.value?.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_ASC,
                 click = sortEpisodesLengthShortToLong,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_long_to_short,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_DESC,
+                checked = viewModel.podcast.value?.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_DESC,
                 click = sortEpisodesLengthLongToShort,
             )
         activity?.supportFragmentManager?.let {
@@ -596,7 +596,7 @@ class PodcastFragment : BaseFragment() {
     }
 
     private fun selectedSortOrderStringId(): Int {
-        return when (viewModel.podcast.value?.episodesSortType) {
+        return when (viewModel.podcast.value?.effectiveEpisodesSortType) {
             EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC -> LR.string.episode_sort_title_a_z
             EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC -> LR.string.episode_sort_title_z_a
             EpisodesSortType.EPISODES_SORT_BY_DATE_ASC -> LR.string.episode_sort_oldest_to_newest

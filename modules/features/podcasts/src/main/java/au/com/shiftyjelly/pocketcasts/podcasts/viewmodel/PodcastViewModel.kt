@@ -1005,7 +1005,7 @@ private fun Flowable<CombinedData>.buildUiState(
             // if the episode limit is on, the following texting is shown the episode list 'Limited to x most recent episodes'
             if (episodeLimit != null && filteredList.isNotEmpty() && podcast.overrideGlobalArchive) {
                 val mutableEpisodeList: MutableList<Any> = episodeList.toMutableList()
-                if (podcast.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC) {
+                if (podcast.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC) {
                     if (episodeLimit <= episodeList.size) {
                         mutableEpisodeList.add(episodeLimit, EpisodeLimitPlaceholder())
                     }

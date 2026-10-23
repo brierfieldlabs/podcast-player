@@ -7,7 +7,7 @@ class EpisodesSortTypeConverter {
 
     @TypeConverter
     fun toEpisodesSortType(value: Int): EpisodesSortType {
-        return EpisodesSortType.values().getOrNull(value) ?: EpisodesSortType.EPISODES_SORT_BY_DATE_DESC
+        return EpisodesSortType.values().getOrNull(value) ?: EpisodesSortType.EPISODES_SORT_BY_DATE_ASC
     }
 
     @TypeConverter
