@@ -34,7 +34,7 @@ class BetaFeaturesViewModel @Inject constructor() : ViewModel() {
             SortOrder.ReleaseDate -> compareByDescending<Feature> { it.addedOn }.thenBy { it.title }
         }
         return Feature.entries
-            .filter { it.hasDevToggle }
+            .filter { it.hasDevToggle && it != Feature.EPISODE_CHAT && it != Feature.EPISODE_CHAT_FREE_BETA }
             .sortedWith(comparator)
             .map {
                 FeatureFlagWrapper(

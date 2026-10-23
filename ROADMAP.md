@@ -5,6 +5,12 @@ Version in development: **v1.2.1**. User-facing releases use SemVer only, not
 
 ## Accepted decisions
 
+- **Episode Chat (#24):** Disabled in Podcast Player, including the player
+  action, its tooltip, sign-in/upgrade prompts, and developer toggles. The
+  central feature flags stay off even if upstream remote configuration enables
+  Episode Chat or its free beta. Keep transcripts, playback, and compatible
+  database/sync structures intact; verify the hidden UI at the next phone trial.
+
 - **Individual podcast episode lists (#23):** oldest-to-newest is the initial
   display order for new and existing subscriptions without a locally recorded
   manual sorting choice. The podcast sort menu reflects the actual display,
