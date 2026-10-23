@@ -189,6 +189,15 @@ enum class Feature(
         hasDevToggle = true,
         addedOn = LocalDate.parse("2026-03-04"),
     ),
+    FOREGROUND_BEFORE_PLAYBACK(
+        key = "foreground_before_playback",
+        title = "Foreground service before playback (Android 17 audio hardening)",
+        defaultValue = isDebugOrPrototypeBuild,
+        tier = FeatureTier.Free,
+        hasFirebaseRemoteFlag = true,
+        hasDevToggle = true,
+        addedOn = LocalDate.parse("2026-07-13"),
+    ),
     NEXT_EPISODE_PREFETCH(
         key = "next_episode_prefetch",
         title = "Next Episode Prefetch",
@@ -209,7 +218,7 @@ enum class Feature(
     ),
     UP_NEXT_SYNC_PROTOBUF(
         key = "up_next_sync_protobuf",
-        title = "Up Next sync with Protocol Buffers",
+        title = "Playlist sync with Protocol Buffers",
         defaultValue = isDebugOrPrototypeBuild,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,
@@ -308,7 +317,7 @@ enum class Feature(
     ),
     UP_NEXT_SORT(
         key = "up_next_sort",
-        title = "Up Next sort by duration",
+        title = "Playlist sort by duration",
         defaultValue = isDebugOrPrototypeBuild,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,
@@ -377,6 +386,15 @@ enum class Feature(
         hasFirebaseRemoteFlag = true,
         hasDevToggle = true,
         addedOn = LocalDate.parse("2026-10-12"),
+    ),
+    RETRY_WITH_PLATFORM_USER_AGENT(
+        key = "retry_with_platform_user_agent",
+        title = "Retry failed media requests with the platform User-Agent",
+        defaultValue = true,
+        tier = FeatureTier.Free,
+        hasFirebaseRemoteFlag = true,
+        hasDevToggle = true,
+        addedOn = LocalDate.parse("2026-10-21"),
     ),
 }
 

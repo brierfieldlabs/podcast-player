@@ -273,9 +273,7 @@ internal enum class AccountSection(
                 ChangeAvatar,
                 ChangeEmail,
                 ChangePassword,
-                UpgradeToPatron,
                 CancelSubscription,
-                Newsletter,
             ),
             listOf(
                 PrivacyPolicy,

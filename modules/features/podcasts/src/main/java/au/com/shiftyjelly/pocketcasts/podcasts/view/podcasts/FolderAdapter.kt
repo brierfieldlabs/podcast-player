@@ -51,6 +51,15 @@ class FolderAdapter(
 ) : LockableListAdapter<FolderItem, RecyclerView.ViewHolder>(FolderItemDiffCallback()) {
 
     var badgeType = BadgeType.OFF
+        private set
+
+    fun setBadgeType(value: BadgeType) {
+        if (badgeType == value) return
+        badgeType = value
+        // Changing the badge mode needs only a badge rebind. Recreating all
+        // artwork requests and RecyclerView holders causes visible stutter.
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount, badgePayload)
+    }
 
     private companion object {
         val badgePayload = Any()
@@ -136,6 +145,7 @@ class FolderAdapter(
         super.onViewRecycled(holder)
         when (holder) {
             is PodcastViewHolder -> {
+                holder.clearBoundPodcast()
                 if (context is FragmentActivity && !context.isDestroyed) {
                     holder.podcastThumbnail.setImageDrawable(null)
                 }
@@ -207,6 +217,11 @@ class FolderAdapter(
         val unplayedCountBadgeView = view.findViewById<ComposeView>(R.id.badge_view)
         private val displayedBadgeCount = mutableIntStateOf(0)
         private val displayedBadgeType = mutableStateOf(BadgeType.OFF)
+        private var boundPodcastUuid: String? = null
+
+        fun clearBoundPodcast() {
+            boundPodcastUuid = null
+        }
 
         init {
             unplayedCountBadgeView.setContentWithViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool) {
@@ -229,10 +244,17 @@ class FolderAdapter(
         }
 
         fun bind(podcast: Podcast, badgeType: BadgeType, podcastUuidToBadge: Map<String, Int>, clickListener: ClickListener) {
+            boundPodcastUuid = podcast.uuid
             button?.setOnClickListener { clickListener.onPodcastClick(podcast, itemView) }
-            button?.setOnLongClickListener { clickListener.onPodcastLongClick(podcast, itemView); true }
+            button?.setOnLongClickListener {
+                clickListener.onPodcastLongClick(podcast, itemView)
+                true
+            }
             podcastCardView?.setOnClickListener { clickListener.onPodcastClick(podcast, itemView) }
-            podcastCardView?.setOnLongClickListener { clickListener.onPodcastLongClick(podcast, itemView); true }
+            podcastCardView?.setOnLongClickListener {
+                clickListener.onPodcastLongClick(podcast, itemView)
+                true
+            }
             podcastTitle.text = podcast.title
             podcastTitle.showIf(isListLayout)
             author?.text = podcast.author
@@ -249,13 +271,13 @@ class FolderAdapter(
                 .newBuilder()
                 .listener(
                     onSuccess = { _, _ ->
-                        if (!isListLayout) {
+                        if (boundPodcastUuid == podcast.uuid && !isListLayout) {
                             podcastTitle.hide()
                             podcastOverlay?.hide()
                         }
                     },
                     onError = { _, _ ->
-                        if (!isListLayout) {
+                        if (boundPodcastUuid == podcast.uuid && !isListLayout) {
                             // Show the fallback podcast title and artwork color
                             podcastTitle.show()
                             podcastOverlay?.show()

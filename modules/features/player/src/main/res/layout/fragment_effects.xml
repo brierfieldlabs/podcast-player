@@ -260,6 +260,83 @@
                 app:layout_constraintLeft_toLeftOf="@id/trimSilenceLabel"
                 app:layout_constraintTop_toBottomOf="@id/volumeLabel" />
 
+            <LinearLayout
+                android:id="@+id/podcastPlayerAudioControls"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:orientation="vertical"
+                android:paddingBottom="24dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/detailVolumeLabel">
+
+                <Switch
+                    android:id="@+id/switchMono"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/podcast_player_audio_mono"
+                    android:textColor="?attr/player_contrast_01"
+                    app:theme="@style/SwitchStyle" />
+
+                <TextView
+                    style="@style/DarkSubtitle1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/podcast_player_audio_equalizer"
+                    android:textColor="?attr/player_contrast_01" />
+
+                <TextView
+                    android:id="@+id/eqBassLabel"
+                    style="@style/DarkSubtitle2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="?attr/player_contrast_01" />
+                <SeekBar
+                    android:id="@+id/eqBassSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="12"
+                    android:progress="6" />
+
+                <TextView
+                    android:id="@+id/eqMidLabel"
+                    style="@style/DarkSubtitle2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="?attr/player_contrast_01" />
+                <SeekBar
+                    android:id="@+id/eqMidSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="12"
+                    android:progress="6" />
+
+                <TextView
+                    android:id="@+id/eqTrebleLabel"
+                    style="@style/DarkSubtitle2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="?attr/player_contrast_01" />
+                <SeekBar
+                    android:id="@+id/eqTrebleSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="12"
+                    android:progress="6" />
+
+                <TextView
+                    style="@style/DarkSubtitle2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/podcast_player_audio_local_only"
+                    android:textColor="?attr/player_contrast_02" />
+            </LinearLayout>
+
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
 </FrameLayout>

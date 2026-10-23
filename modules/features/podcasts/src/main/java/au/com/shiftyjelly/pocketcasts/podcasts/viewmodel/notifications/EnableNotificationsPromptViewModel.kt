@@ -3,10 +3,7 @@ package au.com.shiftyjelly.pocketcasts.podcasts.viewmodel.notifications
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
-import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
 import com.automattic.eventhorizon.EventHorizon
-import com.automattic.eventhorizon.NewsletterOptInChangedEvent
-import com.automattic.eventhorizon.NewsletterSourceType
 import com.automattic.eventhorizon.NotificationsOptInAllowedEvent
 import com.automattic.eventhorizon.NotificationsOptInDeniedEvent
 import com.automattic.eventhorizon.NotificationsOptInShownEvent
@@ -19,16 +16,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.reactive.asFlow
 
 @HiltViewModel
 class EnableNotificationsPromptViewModel @Inject constructor(
     private val settings: Settings,
     private val eventHorizon: EventHorizon,
-    private val userManager: UserManager,
 ) : ViewModel() {
 
     private var _stateFlow: MutableStateFlow<UiState> = MutableStateFlow(UiState.PreNewOnboarding)
@@ -41,9 +35,9 @@ class EnableNotificationsPromptViewModel @Inject constructor(
         viewModelScope.launch {
             _stateFlow.update {
                 UiState.NewOnboarding(
-                    showNewsletterOptIn = userManager.getSignInState().asFlow().first().isSignedIn && !settings.marketingOptIn.value,
+                    showNewsletterOptIn = false,
                     notificationsEnabled = true,
-                    subscribedToNewsletter = true,
+                    subscribedToNewsletter = false,
                 )
             }
         }
@@ -59,13 +53,6 @@ class EnableNotificationsPromptViewModel @Inject constructor(
             }
 
             is UiState.NewOnboarding -> {
-                eventHorizon.track(
-                    NewsletterOptInChangedEvent(
-                        source = NewsletterSourceType.WelcomeNewAccount,
-                        enabled = state.subscribedToNewsletter,
-                    ),
-                )
-                settings.marketingOptIn.set(state.subscribedToNewsletter, updateModifiedAt = true)
                 viewModelScope.launch {
                     _messagesFlow.emit(
                         if (state.notificationsEnabled) {

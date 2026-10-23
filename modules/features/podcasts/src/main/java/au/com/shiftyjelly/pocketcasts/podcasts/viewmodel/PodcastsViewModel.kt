@@ -14,6 +14,8 @@ import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.BadgeType
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.confirmedOfflineDownloadUuids
+import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
@@ -263,28 +265,100 @@ class PodcastsViewModel @AssistedInject constructor(
         }
     }
 
-    suspend fun unfinishedEpisodes(podcast: Podcast): List<PodcastEpisode> =
-        episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+    suspend fun unfinishedEpisodes(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+        .filter { !it.isFinished && !it.isArchived }
+        .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+
+    suspend fun episodesNotPlayed(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrdered(podcast)
+        .filter { !it.isFinished && !it.isArchived }
+
+    fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>): Int {
+        val queue = playbackManager.upNextQueue
+        val alreadyQueued = queue.queueEpisodes.mapTo(mutableSetOf()) { it.uuid }
+        queue.currentEpisode?.uuid?.let(alreadyQueued::add)
+        val room = (settings.getMaxUpNextEpisodes() - queue.queueEpisodes.size).coerceAtLeast(0)
+        if (room == 0) return 0
+
+        val newEpisodes = episodes.asSequence()
             .filter { !it.isFinished && !it.isArchived }
-            .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
-
-    suspend fun episodesNotPlayed(podcast: Podcast): List<PodcastEpisode> =
-        episodeManager.findEpisodesByPodcastOrdered(podcast).filter { !it.isFinished }
-
-    fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>, playNext: Boolean) {
-        val limit = settings.getMaxUpNextEpisodes()
-        val count = if (playNext) 1 else limit
-        val newEpisodes = episodes.filterNot { playbackManager.upNextQueue.contains(it.uuid) }.take(count)
-        if (playNext) {
-            playbackManager.playEpisodesNext(newEpisodes, SourceView.PODCAST_LIST)
-        } else {
+            .filter { alreadyQueued.add(it.uuid) }
+            .take(room)
+            .toList()
+        if (newEpisodes.isNotEmpty()) {
             playbackManager.playEpisodesLast(newEpisodes, SourceView.PODCAST_LIST)
         }
+        return newEpisodes.size
     }
 
-    fun downloadUnfinished(episodes: List<PodcastEpisode>) {
-        val uuids = episodes.take(Settings.MAX_DOWNLOAD).map(PodcastEpisode::uuid)
-        downloadQueue.enqueueAll(uuids, DownloadType.UserTriggered(waitForWifi = false), SourceView.PODCAST_LIST)
+    // Queue across podcasts from fewest unfinished first, with each podcast's
+    // episodes playing oldest to newest. Preserve the existing listening queue.
+    suspend fun queueVisiblePodcastsByUnfinishedCount(): Int {
+        val podcasts = uiState.value.items
+            .filterIsInstance<FolderItem.Podcast>()
+            .map { it.podcast }
+        val room = (settings.getMaxUpNextEpisodes() - playbackManager.upNextQueue.queueEpisodes.size)
+            .coerceAtLeast(0)
+        if (podcasts.isEmpty() || room == 0) return 0
+        val byCount = withContext(Dispatchers.IO) {
+            podcasts.map { podcast -> podcast to unfinishedEpisodes(podcast) }
+                .filter { (_, episodes) -> episodes.isNotEmpty() }
+                .sortedWith(
+                    compareBy<Pair<Podcast, List<PodcastEpisode>>> { it.second.size }
+                        .thenBy { it.first.title },
+                )
+        }
+        val alreadyQueued = playbackManager.upNextQueue.queueEpisodes.mapTo(mutableSetOf()) { it.uuid }
+        playbackManager.upNextQueue.currentEpisode?.uuid?.let(alreadyQueued::add)
+        val toQueue = buildList {
+            for ((_, episodes) in byCount) {
+                for (episode in episodes) {
+                    if (size >= room) break
+                    if (alreadyQueued.add(episode.uuid)) add(episode)
+                }
+                if (size >= room) break
+            }
+        }
+        if (toQueue.isNotEmpty()) {
+            playbackManager.playEpisodesLast(toQueue, SourceView.PODCAST_LIST)
+        }
+        return toQueue.size
+    }
+
+    fun playOldestUnfinished(episodes: List<PodcastEpisode>) {
+        val oldest = episodes.firstOrNull() ?: return
+        // Start listening now. With continuous playback enabled, the next
+        // unfinished episode will follow from this podcast automatically.
+        playbackManager.playEpisodes(listOf(oldest), SourceView.PODCAST_LIST, replaceQueue = true)
+    }
+
+    fun playUnfinishedOldestFirst(episodes: List<PodcastEpisode>) {
+        if (episodes.isEmpty()) return
+        playbackManager.playEpisodes(episodes.take(settings.getMaxUpNextEpisodes()), SourceView.PODCAST_LIST, replaceQueue = true)
+    }
+
+    /**
+     * All unfinished, non-dismissed and downloadable podcast episodes.
+     * Downloaded, in-flight, failed or HLS-only episodes are not queued again.
+     */
+    suspend fun episodesForOffline(podcast: Podcast): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+            .eligibleForOfflineDownload()
+    }
+
+    fun downloadAllForOffline(episodes: List<PodcastEpisode>) {
+        val first = episodes.firstOrNull() ?: return
+        val confirmedUuids = episodes.mapTo(mutableSetOf()) { it.uuid }
+        viewModelScope.launch(Dispatchers.IO) {
+            val podcast = podcastManager.findPodcastByUuid(first.podcastUuid) ?: return@launch
+            val stillEligible = episodeManager.confirmedOfflineDownloadUuids(podcast, confirmedUuids)
+            if (stillEligible.isNotEmpty()) {
+                downloadQueue.enqueueAll(
+                    stillEligible,
+                    DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                    SourceView.PODCAST_LIST,
+                )
+            }
+        }
     }
 
     fun markEpisodesPlayed(episodes: List<PodcastEpisode>) {

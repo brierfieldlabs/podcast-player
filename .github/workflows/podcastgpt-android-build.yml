@@ -1,10 +1,11 @@
-name: PodcastGPT Android APK build
+name: Podcast Player Android APK build
 
 on:
   pull_request:
     branches:
       - add/podcastgpt-customisations
       - fix/podcastgpt-startup-debug-overhead
+      - feature/podcastgpt-tile-actions
 
 permissions:
   contents: read
@@ -28,9 +29,12 @@ jobs:
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-      - name: Compile podcasts feature before full APK assembly
+      - name: Compile changed features before full APK assembly
         run: |
-          ./gradlew :modules:features:podcasts:compileDebugProdKotlin --no-daemon --max-workers=2 \
+          ./gradlew :modules:features:account:compileDebugProdKotlin \
+            :modules:features:profile:compileDebugProdKotlin \
+            :modules:features:settings:compileDebugProdKotlin \
+            :modules:features:podcasts:compileDebugProdKotlin --no-daemon --max-workers=2 \
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
       - name: Assemble debugProd APK
         run: |
@@ -47,8 +51,11 @@ jobs:
           apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
           package=$("$aapt" dump badging "$apk" | grep "^package:")
           echo "$package"
+          label=$("$aapt" dump badging "$apk" | grep "^application-label:")
+          echo "$label"
+          grep -Fx "application-label:'Podcast Player'" <<< "$label"
           grep -F "name='au.com.shiftyjelly.pocketcasts.debug'" <<< "$package"
-          version=$(tr -d '\r\n' < podcastgpt.version)
+          version=$(tr -d '\r\n' < podcast-player.version)
           grep -F "versionName='$version'" <<< "$package"
           version_code=$(sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" <<< "$package")
           IFS=. read -r major minor patch <<< "$version"
@@ -56,11 +63,11 @@ jobs:
           "$apksigner" verify --print-certs "$apk" |
             grep -F "certificate SHA-256 digest: a7a8cc75251243fcabc1c5ae6c2eaa3c74ad9a464ae4a5679e56820cbd9eadc8"
           mkdir -p dist
-          cp "$apk" "dist/PodcastGPT-v${version}.apk"
-          sha256sum "dist/PodcastGPT-v${version}.apk"
+          cp "$apk" "dist/Podcast-Player-v${version}.apk"
+          sha256sum "dist/Podcast-Player-v${version}.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: PodcastGPT-APK
-          path: dist/PodcastGPT-v*.apk
+          name: Podcast-Player-APK
+          path: dist/Podcast-Player-v*.apk
           if-no-files-found: error
           retention-days: 14

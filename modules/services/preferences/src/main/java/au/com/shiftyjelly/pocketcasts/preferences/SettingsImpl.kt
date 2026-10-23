@@ -1104,7 +1104,11 @@ class SettingsImpl @Inject constructor(
         defaultValue = when (Util.getAppPlatform(context)) {
             AppPlatform.Automotive -> true
 
-            AppPlatform.Phone,
+            // Podcast Player follows the next unfinished episode when a queue
+            // ends, without requiring listeners to build Up Next manually.
+            // Any existing user preference still overrides this default.
+            AppPlatform.Phone -> true
+
             AppPlatform.WearOs,
             AppPlatform.Tv,
             -> false

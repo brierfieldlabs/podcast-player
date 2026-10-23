@@ -11,8 +11,10 @@ plugins {
 android {
     namespace = "au.com.shiftyjelly.pocketcasts.settings"
     defaultConfig {
-        val podcastGptVersion = providers.fileContents(rootProject.layout.projectDirectory.file("podcastgpt.version")).asText.get().trim()
-        buildConfigField("String", "PODCASTGPT_VERSION", "\"$podcastGptVersion\"")
+        val podcastPlayerVersion = providers.fileContents(
+            rootProject.layout.projectDirectory.file("podcast-player.version"),
+        ).asText.get().trim()
+        buildConfigField("String", "PODCAST_PLAYER_VERSION", "\"$podcastPlayerVersion\"")
     }
     buildFeatures {
         buildConfig = true

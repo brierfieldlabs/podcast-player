@@ -1,0 +1,108 @@
+name: PodcastGPT upstream review
+
+on:
+  schedule:
+    - cron: "23 8 * * 1" # Mondays, 08:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: podcastgpt-upstream-review
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: github.repository == 'brierfieldlabs/pocket-casts-android'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Prepare upstream update for review
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          base=add/podcastgpt-customisations
+          update=automation/podcastgpt-upstream-update
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/Automattic/pocket-casts-android.git
+          git fetch --no-tags origin "+refs/heads/${base}:refs/remotes/origin/${base}"
+          git fetch --no-tags upstream refs/heads/main:refs/remotes/upstream/main
+
+          if git merge-base --is-ancestor refs/remotes/upstream/main "refs/remotes/origin/${base}"; then
+            echo '## PodcastGPT is already up to date with upstream main.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          previous=$(git ls-remote --heads origin "refs/heads/${update}" | cut -f1)
+          if [ -n "$previous" ]; then
+            git fetch --no-tags origin "+refs/heads/${update}:refs/remotes/origin/${update}"
+          fi
+
+          needs_push=true
+          if [ -n "$previous" ] &&
+             git merge-base --is-ancestor "refs/remotes/origin/${base}" "refs/remotes/origin/${update}" &&
+             git merge-base --is-ancestor refs/remotes/upstream/main "refs/remotes/origin/${update}"; then
+            needs_push=false
+          fi
+
+          if [ "$needs_push" = true ]; then
+            git switch --force-create "$update" "refs/remotes/origin/${base}"
+            if ! git merge --no-ff --no-edit refs/remotes/upstream/main; then
+              {
+                echo '## Upstream merge needs manual conflict resolution'
+                echo 'No PodcastGPT branch, PR or release was modified.'
+                echo ''
+                echo 'Conflicting files:'
+                git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/'
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo '::error::Upstream merge has conflicts; resolve these manually before updating PodcastGPT.'
+              exit 1
+            fi
+
+            git diff --check "refs/remotes/origin/${base}...HEAD"
+            if [ -n "$previous" ]; then
+              git push "--force-with-lease=refs/heads/${update}:${previous}" origin "HEAD:refs/heads/${update}"
+            else
+              git push origin "HEAD:refs/heads/${update}"
+            fi
+          fi
+
+          pr=$(gh pr list --repo "$GH_REPO" --state open --base "$base" --head "$update" --json number --jq '.[0].number // empty')
+          body="$RUNNER_TEMP/podcastgpt-upstream-review.md"
+          cat > "$body" <<EOF
+          ## Pocket Casts upstream update for PodcastGPT
+
+          Prepared from `Automattic/pocket-casts-android:main` for review against `$base`.
+
+          - Upstream head: `$(git rev-parse --short refs/remotes/upstream/main)`
+          - PodcastGPT base: `$(git rev-parse --short "refs/remotes/origin/${base}")`
+          - This is a reviewable **merge** of upstream, not a forced rebase of your working branch.
+          - Merge-conflict detection and `git diff --check` ran in the updater when the candidate branch was prepared.
+          - **Before merging:** review the upstream changes, run suitable Android builds/tests, and check that PodcastGPT customisations still work.
+          - **No automatic merge, APK publication or device update.**
+          EOF
+
+          if [ -z "$pr" ]; then
+            url=$(gh pr create --repo "$GH_REPO" --base "$base" --head "$update" \
+              --title 'chore: review Pocket Casts upstream changes for PodcastGPT' \
+              --body-file "$body")
+          else
+            gh pr edit "$pr" --repo "$GH_REPO" --body-file "$body"
+            url="https://github.com/$GH_REPO/pull/$pr"
+          fi
+          echo "## Upstream update ready for review" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+          echo 'No changes were merged or released.' >> "$GITHUB_STEP_SUMMARY"

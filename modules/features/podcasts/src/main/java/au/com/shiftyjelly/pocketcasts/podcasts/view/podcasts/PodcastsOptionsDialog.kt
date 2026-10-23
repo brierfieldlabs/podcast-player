@@ -24,6 +24,7 @@ class PodcastsOptionsDialog(
     val fragment: Fragment,
     val settings: Settings,
     private val eventHorizon: EventHorizon,
+    private val onQueueVisiblePodcasts: () -> Unit,
 ) {
     private var showDialog: OptionsDialog? = null
     private var sortDialog: OptionsDialog? = null
@@ -33,6 +34,11 @@ class PodcastsOptionsDialog(
 
     fun show() {
         val dialog = OptionsDialog()
+            .addTextOption(
+                titleId = LR.string.podcast_player_queue_fewest_first,
+                imageId = IR.drawable.ic_upnext_playnext,
+                click = onQueueVisiblePodcasts,
+            )
             .addTextOption(
                 titleId = LR.string.podcasts_menu_sort_by,
                 imageId = IR.drawable.ic_sort,

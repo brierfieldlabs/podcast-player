@@ -80,14 +80,6 @@ class CreateDoneFragment : BaseFragment() {
             closeForm()
         }
 
-        binding.btnNewsletter.setOnClickListener {
-            binding.switchNewsletter.isChecked = !binding.switchNewsletter.isChecked
-        }
-        binding.switchNewsletter.isChecked = viewModel.newsletter.value ?: false
-        binding.switchNewsletter.setOnCheckedChangeListener { _, isChecked ->
-            viewModel.updateNewsletter(isChecked)
-        }
-
         binding.btnDone.setOnClickListener {
             closeForm()
         }

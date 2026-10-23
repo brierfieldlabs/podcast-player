@@ -321,14 +321,67 @@ class PodcastFragment : BaseFragment() {
         }
     }
 
+    private fun selectEpisode(episode: PodcastEpisode) {
+        if (viewModel.multiSelectEpisodesHelper.listener == null) {
+            binding?.setupMultiSelect()
+        }
+        viewModel.multiSelectEpisodesHelper
+            .defaultLongPress(multiSelectable = episode, fragmentManager = childFragmentManager)
+    }
+
+    private fun showEpisodeLongPressOptions(episode: PodcastEpisode) {
+        val dialog = OptionsDialog().setTitle(episode.title)
+        if (!episode.isArchived && !episode.isFinished) {
+            dialog.addTextOption(
+                titleId = LR.string.podcast_player_play_from_episode,
+                imageId = IR.drawable.ic_play_all,
+                click = {
+                    if (!viewModel.playFromEpisodeOldestFirst(episode)) {
+                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    }
+                },
+            )
+        }
+        dialog.addTextOption(
+            titleId = if (episode.isArchived) {
+                LR.string.podcast_player_restore_episode
+            } else {
+                LR.string.podcast_player_dismiss_episode
+            },
+            imageId = if (episode.isArchived) IR.drawable.ic_unarchive else IR.drawable.ic_archive,
+            click = {
+                val dismiss = !episode.isArchived
+                viewLifecycleOwner.lifecycleScope.launch {
+                    viewModel.setEpisodeDismissed(episode, dismiss)
+                    if (dismiss) {
+                        showSnackBar(
+                            message = getString(LR.string.podcast_player_episode_dismissed),
+                            cta = getString(LR.string.bookmarks_deleted_undo),
+                            onCtaClick = {
+                                viewLifecycleOwner.lifecycleScope.launch {
+                                    viewModel.setEpisodeDismissed(episode, false)
+                                }
+                            },
+                        )
+                    }
+                }
+            },
+        ).addTextOption(
+            titleId = LR.string.playlist_select_episodes,
+            imageId = IR.drawable.ic_multiselect,
+            click = { selectEpisode(episode) },
+        )
+        dialog.show(parentFragmentManager, "podcast_player_episode_options")
+    }
+
     private fun <T> onRowLongPress(): (entity: T) -> Unit = {
         when (it) {
             is PodcastEpisode -> {
-                if (viewModel.multiSelectEpisodesHelper.listener == null) {
-                    binding?.setupMultiSelect()
+                if (viewModel.multiSelectEpisodesHelper.isMultiSelecting) {
+                    selectEpisode(it)
+                } else {
+                    showEpisodeLongPressOptions(it)
                 }
-                viewModel.multiSelectEpisodesHelper
-                    .defaultLongPress(multiSelectable = it, fragmentManager = childFragmentManager)
             }
 
             is Bookmark -> {
@@ -408,35 +461,36 @@ class PodcastFragment : BaseFragment() {
     }
 
     private val showEpisodeSortOptions = {
+        val selectedSortType = viewModel.podcast.value?.effectiveEpisodesSortType
         val dialog = OptionsDialog()
             .addCheckedOption(
                 titleId = LR.string.episode_sort_title_a_z,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC,
+                checked = selectedSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC,
                 click = sortEpisodesTitleAZ,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_title_z_a,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC,
+                checked = selectedSortType == EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC,
                 click = sortEpisodesTitleZA,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_newest_to_oldest,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC,
+                checked = selectedSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC,
                 click = sortEpisodesNewestToOldest,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_oldest_to_newest,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_ASC,
+                checked = selectedSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_ASC,
                 click = sortEpisodesOldestToNewest,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_short_to_long,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_ASC,
+                checked = selectedSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_ASC,
                 click = sortEpisodesLengthShortToLong,
             )
             .addCheckedOption(
                 titleId = LR.string.episode_sort_long_to_short,
-                checked = viewModel.podcast.value?.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_DESC,
+                checked = selectedSortType == EpisodesSortType.EPISODES_SORT_BY_LENGTH_DESC,
                 click = sortEpisodesLengthLongToShort,
             )
         activity?.supportFragmentManager?.let {
@@ -473,6 +527,15 @@ class PodcastFragment : BaseFragment() {
     private val onEpisodesOptionsClicked: () -> Unit = {
         eventHorizon.track(PodcastScreenOptionsTappedEvent)
         var optionsDialog = OptionsDialog()
+            .addTextOption(
+                titleId = LR.string.podcast_player_play_visible_unfinished,
+                imageId = IR.drawable.ic_play_all,
+                click = {
+                    if (!viewModel.playVisibleUnfinishedOldestFirst()) {
+                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    }
+                },
+            )
             .addTextOption(
                 titleId = LR.string.podcast_refresh_episodes,
                 imageId = IR.drawable.ic_refresh,
@@ -534,7 +597,7 @@ class PodcastFragment : BaseFragment() {
     }
 
     private fun selectedSortOrderStringId(): Int {
-        return when (viewModel.podcast.value?.episodesSortType) {
+        return when (viewModel.podcast.value?.effectiveEpisodesSortType) {
             EpisodesSortType.EPISODES_SORT_BY_TITLE_ASC -> LR.string.episode_sort_title_a_z
             EpisodesSortType.EPISODES_SORT_BY_TITLE_DESC -> LR.string.episode_sort_title_z_a
             EpisodesSortType.EPISODES_SORT_BY_DATE_ASC -> LR.string.episode_sort_oldest_to_newest
@@ -1298,11 +1361,24 @@ class PodcastFragment : BaseFragment() {
     }
 
     private fun downloadAll() {
-        val episodeCount = viewModel.episodeCount()
-        val dialog = ConfirmationDialog.downloadWarningDialog(episodeCount, resources) {
-            viewModel.downloadAll()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val episodes = viewModel.eligibleOfflineEpisodes()
+            if (episodes.isEmpty()) {
+                showSnackBar(getString(LR.string.podcast_player_download_all_nothing))
+            } else {
+                ConfirmationDialog()
+                    .setTitle(getString(LR.string.podcast_player_download_all_title))
+                    .setSummary(getString(LR.string.podcast_player_download_all_warning, episodes.size))
+                    .setIconId(IR.drawable.ic_download)
+                    .setButtonType(
+                        ConfirmationDialog.ButtonType.Normal(
+                            getString(LR.string.download_warning_button, episodes.size),
+                        ),
+                    )
+                    .setOnConfirm { viewModel.downloadAll(episodes) }
+                    .show(parentFragmentManager, "download_confirm")
+            }
         }
-        dialog?.show(parentFragmentManager, "download_confirm")
     }
 
     private fun showSnackBar(

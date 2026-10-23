@@ -16,10 +16,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +66,10 @@ internal fun PodcastSettingsHomePage(
     iconTint: Color,
     onChangeNotifications: (Boolean) -> Unit,
     onChangeAutoDownload: (Boolean) -> Unit,
+    onDecrementRollingDownloadLimit: () -> Unit,
+    onIncrementRollingDownloadLimit: () -> Unit,
+    onChangeExcludedTitleTerms: (String) -> Unit,
+    onChangeSkippedChapterTerms: (String) -> Unit,
     onChangeAddToUpNext: (Boolean) -> Unit,
     onChangeUpNextPosition: () -> Unit,
     onChangeUpNextGlobalSettings: () -> Unit,
@@ -75,6 +86,8 @@ internal fun PodcastSettingsHomePage(
     modifier: Modifier = Modifier,
 ) {
     val podcast = uiState.podcast
+    var editingKeywordSetting by remember { mutableStateOf<PodcastKeywordSetting?>(null) }
+    var editedTerms by remember { mutableStateOf("") }
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -100,18 +113,63 @@ internal fun PodcastSettingsHomePage(
         )
         SettingRow(
             primaryText = stringResource(LR.string.podcast_settings_auto_download),
-            secondaryText = stringResource(LR.string.podcast_settings_auto_download_summary),
+            secondaryText = if (uiState.isGlobalAutoDownloadEnabled) {
+                stringResource(LR.string.podcast_settings_auto_download_summary)
+            } else {
+                stringResource(LR.string.podcast_player_auto_download_global_off)
+            },
             icon = painterResource(IR.drawable.ic_download),
             iconTint = iconTint,
             toggle = SettingRowToggle.Switch(
-                checked = uiState.isGlobalAutoDownloadEnabled && podcast.isAutoDownloadNewEpisodes,
+                checked = podcast.isAutoDownloadNewEpisodes,
                 enabled = true,
             ),
             modifier = Modifier.toggleable(
-                value = uiState.isGlobalAutoDownloadEnabled && podcast.isAutoDownloadNewEpisodes,
+                value = podcast.isAutoDownloadNewEpisodes,
                 role = Role.Switch,
                 onValueChange = onChangeAutoDownload,
             ),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+        ) {
+            SettingRow(
+                primaryText = stringResource(LR.string.podcast_player_rolling_downloads),
+                secondaryText = if (uiState.rollingDownloadLimit == 0) {
+                    stringResource(LR.string.off)
+                } else {
+                    stringResource(LR.string.podcast_player_rolling_downloads_count, uiState.rollingDownloadLimit)
+                },
+                icon = painterResource(IR.drawable.ic_download),
+                iconTint = iconTint,
+                modifier = Modifier.weight(1f),
+            )
+            NumberStepper(
+                onMinusClick = onDecrementRollingDownloadLimit,
+                onPlusClick = onIncrementRollingDownloadLimit,
+                tint = iconTint,
+            )
+        }
+        SettingRow(
+            primaryText = stringResource(LR.string.podcast_player_excluded_titles),
+            secondaryText = uiState.excludedTitleTerms.ifBlank { stringResource(LR.string.off) },
+            icon = painterResource(IR.drawable.ic_filters),
+            iconTint = iconTint,
+            modifier = Modifier.clickable(role = Role.Button) {
+                editedTerms = uiState.excludedTitleTerms
+                editingKeywordSetting = PodcastKeywordSetting.EpisodeTitles
+            },
+        )
+        SettingRow(
+            primaryText = stringResource(LR.string.podcast_player_skip_matching_chapters),
+            secondaryText = uiState.skippedChapterTerms.ifBlank { stringResource(LR.string.off) },
+            icon = painterResource(IR.drawable.ic_skip_next),
+            iconTint = iconTint,
+            modifier = Modifier.clickable(role = Role.Button) {
+                editedTerms = uiState.skippedChapterTerms
+                editingKeywordSetting = PodcastKeywordSetting.ChapterTitles
+            },
         )
         SettingRow(
             primaryText = stringResource(LR.string.podcast_settings_add_to_up_next),
@@ -307,6 +365,76 @@ internal fun PodcastSettingsHomePage(
             )
         }
     }
+
+    val activeKeywordSetting = editingKeywordSetting
+    if (activeKeywordSetting != null) {
+        val isChapterRule = activeKeywordSetting == PodcastKeywordSetting.ChapterTitles
+        AlertDialog(
+            onDismissRequest = { editingKeywordSetting = null },
+            title = {
+                Text(
+                    stringResource(
+                        if (isChapterRule) {
+                            LR.string.podcast_player_skip_matching_chapters
+                        } else {
+                            LR.string.podcast_player_excluded_titles
+                        },
+                    ),
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        stringResource(
+                            if (isChapterRule) {
+                                LR.string.podcast_player_skip_matching_chapters_explanation
+                            } else {
+                                LR.string.podcast_player_excluded_titles_explanation
+                            },
+                        ),
+                    )
+                    OutlinedTextField(
+                        value = editedTerms,
+                        onValueChange = { editedTerms = it },
+                        label = {
+                            Text(
+                                stringResource(
+                                    if (isChapterRule) {
+                                        LR.string.podcast_player_skip_matching_chapters_hint
+                                    } else {
+                                        LR.string.podcast_player_excluded_titles_hint
+                                    },
+                                ),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (isChapterRule) {
+                        onChangeSkippedChapterTerms(editedTerms)
+                    } else {
+                        onChangeExcludedTitleTerms(editedTerms)
+                    }
+                    editingKeywordSetting = null
+                }) {
+                    Text(stringResource(LR.string.done))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingKeywordSetting = null }) {
+                    Text(stringResource(LR.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+private enum class PodcastKeywordSetting {
+    EpisodeTitles,
+    ChapterTitles,
 }
 
 @Preview
@@ -344,6 +472,10 @@ private fun PodcastSettingsHomePagePreview(
             ),
             onChangeNotifications = {},
             onChangeAutoDownload = {},
+            onDecrementRollingDownloadLimit = {},
+            onIncrementRollingDownloadLimit = {},
+            onChangeExcludedTitleTerms = {},
+            onChangeSkippedChapterTerms = {},
             onChangeAddToUpNext = {},
             onChangeUpNextPosition = {},
             onChangeUpNextGlobalSettings = {},

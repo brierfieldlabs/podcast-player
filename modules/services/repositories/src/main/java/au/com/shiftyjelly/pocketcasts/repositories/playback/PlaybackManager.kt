@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.os.Build
 import android.widget.Toast
 import androidx.annotation.MainThread
 import androidx.annotation.OptIn
@@ -44,7 +46,10 @@ import au.com.shiftyjelly.pocketcasts.repositories.R
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
 import au.com.shiftyjelly.pocketcasts.repositories.di.NotificationPermissionChecker
+import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.PodcastPlayerPodcastPreferences
 import au.com.shiftyjelly.pocketcasts.repositories.fingerprint.GeneratedChapterSeeker
 import au.com.shiftyjelly.pocketcasts.repositories.history.upnext.UpNextHistoryManager
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
@@ -118,7 +123,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -158,6 +162,8 @@ open class PlaybackManager @Inject constructor(
     @ApplicationContext private val application: Context,
     private val playlistManager: PlaylistManager,
     private val downloadQueue: DownloadQueue,
+    private val autoDownloadEpisodeProvider: AutoDownloadEpisodeProvider,
+    private val podcastPlayerPreferences: PodcastPlayerPodcastPreferences,
     val upNextQueue: UpNextQueue,
     private val notificationHelper: NotificationHelper,
     private val userEpisodeManager: UserEpisodeManager,
@@ -205,8 +211,15 @@ open class PlaybackManager @Inject constructor(
 
     private var audioNoisyManager = AudioNoisyManager(application, pausesOnHdmiDisconnect = Util.isTv(application))
 
+    // Usage stays on the media stream so the tones keep the volume they have always had.
+    private val toneAudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+
     private val bookmarkTonePlayer: MediaPlayer by lazy {
         MediaPlayer().apply {
+            setAudioAttributes(toneAudioAttributes)
             setDataSource(application, "android.resource://${application.packageName}/${R.raw.bookmark_creation_sound}".toUri())
             prepare()
         }
@@ -214,6 +227,7 @@ open class PlaybackManager @Inject constructor(
 
     private val sleepTimeTonePlayer: MediaPlayer by lazy {
         MediaPlayer().apply {
+            setAudioAttributes(toneAudioAttributes)
             setDataSource(application, "android.resource://${application.packageName}/${R.raw.sleep_time_device_shake_confirmation_sound}".toUri())
             prepare()
         }
@@ -619,6 +633,11 @@ open class PlaybackManager @Inject constructor(
         return player?.isRemote ?: false
     }
 
+    /** Refresh device-local EQ gains for Android output only; cast stays unchanged. */
+    fun refreshPodcastPlayerEqualizer() {
+        (player as? SimplePlayer)?.refreshPodcastPlayerEqualizer()
+    }
+
     fun isAudioEffectsAvailable(): Boolean {
         val episode = getCurrentEpisode()
         return episode != null
@@ -861,6 +880,9 @@ open class PlaybackManager @Inject constructor(
         SourceView.PODCAST_SCREEN,
         SourceView.STARRED,
         SourceView.MEDIA_BUTTON_BROADCAST_ACTION,
+        // Car commands used to be reported as MEDIA_BUTTON_BROADCAST_ACTION, so they keep its behavior.
+        SourceView.ANDROID_AUTO,
+        SourceView.AUTOMOTIVE,
         -> settings.trackingAutoPlaySource.value
     }
 
@@ -884,6 +906,7 @@ open class PlaybackManager @Inject constructor(
         source: SourceView,
         userInitiated: Boolean = true,
     ) = withContext(Dispatchers.Default) {
+        if (upNextQueue.isCurrentEpisode(episode)) return@withContext
         val wasEmpty: Boolean = upNextQueue.isEmpty
         upNextQueue.playNextBlocking(episode, onAdd = null, isUserInitiated = userInitiated)
         if (userInitiated) {
@@ -906,6 +929,7 @@ open class PlaybackManager @Inject constructor(
         source: SourceView,
         userInitiated: Boolean = true,
     ) {
+        if (upNextQueue.isCurrentEpisode(episode)) return
         val wasEmpty: Boolean = upNextQueue.isEmpty
         upNextQueue.playLast(episode, onAdd = null, isUserInitiated = userInitiated)
         if (userInitiated) {
@@ -962,7 +986,11 @@ open class PlaybackManager @Inject constructor(
             }
     }
 
-    fun playEpisodes(episodes: List<BaseEpisode>, sourceView: SourceView = SourceView.UNKNOWN) {
+    fun playEpisodes(
+        episodes: List<BaseEpisode>,
+        sourceView: SourceView = SourceView.UNKNOWN,
+        replaceQueue: Boolean = false,
+    ) {
         if (episodes.isEmpty()) {
             return
         }
@@ -970,8 +998,20 @@ open class PlaybackManager @Inject constructor(
         launch {
             val topEpisode = episodes.first()
             playNowSync(episode = topEpisode, sourceView = sourceView)
-            if (episodes.size > 1) {
-                upNextQueue.clearAndPlayAll(episodes.slice(1 until min(episodes.size, settings.getMaxUpNextEpisodes())))
+            if (episodes.size > 1 || replaceQueue) {
+                // Explicit single-episode podcast playback must not resume an
+                // unrelated old Up Next list after the selected episode.
+                upNextQueue.clearAndPlayAll(
+                    episodes.drop(1).take((settings.getMaxUpNextEpisodes() - 1).coerceAtLeast(0)),
+                )
+            }
+            if (replaceQueue && topEpisode is PodcastEpisode) {
+                // Inserting into a nonempty Up Next clears both remembered
+                // autoplay sources. Restore the selected podcast only AFTER
+                // all queue changes, or continuous playback silently stops.
+                val podcastSource = AutoPlaySource.fromId(topEpisode.podcastUuid)
+                settings.trackingAutoPlaySource.set(podcastSource, updateModifiedAt = false)
+                settings.lastAutoPlaySource.set(podcastSource, updateModifiedAt = false)
             }
         }
     }
@@ -1089,6 +1129,8 @@ open class PlaybackManager @Inject constructor(
         LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Stopping playback")
 
         flushPendingContentTypeEvents()
+
+        mediaSessionManager.isSwitchingPlayer = false
 
         cancelPrefetchNextEpisode()
         cancelUpdateTimer()
@@ -1504,6 +1546,7 @@ open class PlaybackManager @Inject constructor(
 
     @OptIn(UnstableApi::class)
     suspend fun onPlayerError(event: PlayerEvent.PlayerError) {
+        mediaSessionManager.isSwitchingPlayer = false
         settings.recordErrorSession()
         val episode = getCurrentEpisode()
 
@@ -1676,6 +1719,7 @@ open class PlaybackManager @Inject constructor(
 
     fun onPlayerPlaying() {
         Timber.i("PlaybackService onPlayerPlaying")
+        mediaSessionManager.isSwitchingPlayer = false
         val episode = getCurrentEpisode() ?: return
 
         playbackStateRelay.blockingFirst().let { playbackState ->
@@ -1695,6 +1739,7 @@ open class PlaybackManager @Inject constructor(
     }
 
     suspend fun onPlayerPaused() {
+        mediaSessionManager.isSwitchingPlayer = false
         withContext(Dispatchers.Main) {
             playbackStateRelay.blockingFirst().let { playbackState ->
                 playbackStateRelay.accept(playbackState.copy(state = PlaybackState.State.PAUSED, lastChangeFrom = LastChangeFrom.OnPlayerPaused.value))
@@ -1783,6 +1828,20 @@ open class PlaybackManager @Inject constructor(
             // auto archive after playing
             if (episode is PodcastEpisode) {
                 episodeManager.archivePlayedEpisode(episode, this, podcastManager, sync = true)
+                // Replenish only enabled offline collections. The queued automatic
+                // downloads still obey the user's Wi-Fi, power and storage rules.
+                applicationScope.launch(Dispatchers.IO) {
+                    podcastManager.findPodcastByUuid(episode.podcastUuid)?.let { podcast ->
+                        val rolling = autoDownloadEpisodeProvider.getRollingEpisodes(podcast)
+                        if (rolling.isNotEmpty()) {
+                            downloadQueue.enqueueAll(
+                                rolling,
+                                DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                                SourceView.AUTO_DOWNLOAD,
+                            )
+                        }
+                    }
+                }
             } else if (episode is UserEpisode) {
                 userEpisodeManager.deletePlayedEpisodeIfReq(episode, this)
             }
@@ -1992,24 +2051,51 @@ open class PlaybackManager @Inject constructor(
     private var observeChaptersJob: Job? = null
 
     private fun onEpisodeChanged(episodeUuid: String) {
+        // An observer from the previous episode must never advance this one.
+        observeChaptersSkipping?.cancel()
+        observeChaptersSkipping = null
         observeChaptersJob?.cancel()
         observeChaptersJob = chapterManager.observerChaptersForEpisode(episodeUuid)
-            .onEach { onChaptersAvailable(it) }
+            .onEach { onChaptersAvailable(episodeUuid, it) }
             .launchIn(this)
     }
 
     @Volatile
     private var observeChaptersSkipping: Job? = null
 
-    private fun onChaptersAvailable(chapters: Chapters) {
-        playbackStateRelay.blockingFirst().let { playbackState ->
-            playbackStateRelay.accept(playbackState.copy(chapters = chapters))
+    private fun onChaptersAvailable(episodeUuid: String, chapters: Chapters) {
+        // Chapter updates can finish after a different episode starts.
+        if (getCurrentEpisode()?.uuid != episodeUuid) return
+        val episode = getCurrentEpisode() as? PodcastEpisode
+        val selectedChapters = if (episode == null || player?.isRemote == true) {
+            // Never apply device-local rules to Chromecast. Preserve existing
+            // per-episode manual chapter selections on either player.
+            chapters
+        } else {
+            Chapters(
+                chapters.map { chapter ->
+                    if (podcastPlayerPreferences.matchesSkippedChapterTitle(episode.podcastUuid, chapter.title)) {
+                        chapter.copy(selected = false)
+                    } else {
+                        chapter
+                    }
+                },
+            )
         }
+        val playbackState = playbackStateRelay.blockingFirst()
+        if (playbackState.episodeUuid != episodeUuid) return
+        playbackStateRelay.accept(playbackState.copy(chapters = selectedChapters))
         observeChaptersSkipping?.cancel()
         observeChaptersSkipping = playbackStateRelay.asFlow()
-            .map { it.positionMs.milliseconds }
-            .onEach { position ->
-                val currentChapter = chapters.firstOrNull { position in it }
+            .map { state ->
+                val position = state.positionMs.milliseconds
+                selectedChapters.firstOrNull { position in it }
+            }
+            // Only one seek for each entry into a skipped chapter. Repeated
+            // position ticks while a seek is pending must not skip twice.
+            .distinctUntilChanged()
+            .onEach { currentChapter ->
+                if (getCurrentEpisode()?.uuid != episodeUuid) return@onEach
                 if (currentChapter?.selected == false) {
                     skipToNextSelectedOrLastChapter()
                 }
@@ -2071,6 +2157,10 @@ open class PlaybackManager @Inject constructor(
     }
 
     override fun onFocusRequestFailed() {
+        val player = player
+        if (player == null || player.isRemote) {
+            return
+        }
         LogBuffer.e(LogBuffer.TAG_PLAYBACK, "Could not get audio focus, stopping")
         stopAsync(isAudioFocusFailed = true)
     }
@@ -2511,7 +2601,27 @@ open class PlaybackManager @Inject constructor(
             return
         }
 
-        val hasAudioFocus = focusManager.tryToGetAudioFocus()
+        // Android 17: reach the foreground service before requesting audio focus, otherwise focus is denied.
+        if (FeatureFlag.isEnabled(Feature.FOREGROUND_BEFORE_PLAYBACK) && !Util.isAutomotive(application) && player?.isRemote != true) {
+            when (mediaSessionManager.ensureForegroundServiceStarted(application)) {
+                ForegroundStart.Started -> Unit
+
+                ForegroundStart.Unconfirmed -> {
+                    LogBuffer.e(LogBuffer.TAG_PLAYBACK, "Foreground service not ready before playback, proceeding with fallback")
+                }
+
+                ForegroundStart.Refused -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+                        LogBuffer.e(LogBuffer.TAG_PLAYBACK, "Foreground service start refused, abandoning playback")
+                        abandonPlaybackStart()
+                        return
+                    }
+                    LogBuffer.e(LogBuffer.TAG_PLAYBACK, "Foreground service start refused, proceeding with fallback")
+                }
+            }
+        }
+
+        val hasAudioFocus = player?.isRemote == true || focusManager.tryToGetAudioFocus()
         if (!hasAudioFocus) {
             return
         }
@@ -2595,6 +2705,9 @@ open class PlaybackManager @Inject constructor(
     private suspend fun resetPlayer() {
         if (resettingPlayer) return
         resettingPlayer = true
+        if (FeatureFlag.isEnabled(Feature.FOREGROUND_BEFORE_PLAYBACK)) {
+            mediaSessionManager.isSwitchingPlayer = true
+        }
 
         withContext(Dispatchers.Main) {
             player?.stop()
@@ -2606,7 +2719,10 @@ open class PlaybackManager @Inject constructor(
                 player = playerManager.createSimplePlayer(this@PlaybackManager::onPlayerEvent)
                 // Start the service early so it's ready when we install the player later.
                 // The ExoPlayer doesn't exist yet — SimplePlayer creates it lazily in prepare().
-                mediaSessionManager.startServiceIfNeeded(application)
+                // When the flag is on, play() starts the foreground service via the gate instead (except on Automotive).
+                if (!FeatureFlag.isEnabled(Feature.FOREGROUND_BEFORE_PLAYBACK) || Util.isAutomotive(application)) {
+                    mediaSessionManager.startServiceIfNeeded(application)
+                }
                 Timber.i("Creating media player of type SimplePlayer.")
             }
         }
@@ -2914,6 +3030,20 @@ open class PlaybackManager @Inject constructor(
         }
     }
 
+    private suspend fun abandonPlaybackStart() {
+        mediaSessionManager.isSwitchingPlayer = false
+        withContext(Dispatchers.Main) {
+            playbackStateRelay.blockingFirst().let { playbackState ->
+                playbackStateRelay.accept(
+                    playbackState.copy(
+                        state = PlaybackState.State.PAUSED,
+                        lastChangeFrom = LastChangeFrom.OnForegroundServiceRefused.value,
+                    ),
+                )
+            }
+        }
+    }
+
     private suspend fun updatePausedPlaybackState() {
         val previousPlaybackState = playbackStateRelay.blockingFirst()
         if (previousPlaybackState != null && previousPlaybackState.isPlaying) {
@@ -3058,6 +3188,7 @@ open class PlaybackManager @Inject constructor(
         OnCompletion("onCompletion"),
         OnDurationAvailable("onDurationAvailable"),
         OnEffectsChanged("effectsChanged"),
+        OnForegroundServiceRefused("foregroundServiceRefused"),
         OnPlay("play"),
         OnPlayerError("onPlayerError"),
         OnPlayerPaused("onPlayerPaused"),

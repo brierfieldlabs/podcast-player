@@ -122,11 +122,12 @@ class PodcastsFragment :
         private const val LAST_ORIENTATION_NOT_SET = -1
         private const val MENU_QUEUE_UNFINISHED = 1
         private const val MENU_PLAY_OLDEST = 2
-        private const val MENU_DOWNLOAD_UNFINISHED = 3
         private const val MENU_MARK_ALL_PLAYED = 4
         private const val MENU_PODCAST_SETTINGS = 5
         private const val MENU_SHARE = 6
         private const val MENU_UNSUBSCRIBE = 7
+        private const val MENU_PLAY_ALL_UNFINISHED = 8
+        private const val MENU_DOWNLOAD_ALL = 9
         const val ARG_FOLDER_UUID = "ARG_FOLDER_UUID"
 
         fun newInstance(folderUuid: String): PodcastsFragment {
@@ -164,6 +165,8 @@ class PodcastsFragment :
     private var lastOrientationRefreshed = LAST_ORIENTATION_NOT_SET
     private var lastWidthPx: Int = 0
     private var listState: Parcelable? = null
+    private var displayedGridLayout: PodcastGridLayoutType? = null
+    private var latestBottomInset = 0
 
     private val folderUuid: String?
         get() = arguments?.getString(ARG_FOLDER_UUID)
@@ -273,6 +276,15 @@ class PodcastsFragment :
 
         setupEmptyStateView()
 
+        // One collector per view lifecycle. Previously every grid refresh
+        // launched another long-lived inset collector.
+        viewLifecycleOwner.lifecycleScope.launch {
+            settings.bottomInset.collect { inset ->
+                latestBottomInset = inset
+                updateGridPadding()
+            }
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.layoutChangedFlow.collect {
@@ -284,7 +296,7 @@ class PodcastsFragment :
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.podcastUuidToBadge.collect { podcastUuidToBadge ->
-                    folderAdapter?.badgeType = settings.podcastBadgeType.value
+                    folderAdapter?.setBadgeType(settings.podcastBadgeType.value)
                     folderAdapter?.setBadges(podcastUuidToBadge)
                 }
             }
@@ -332,6 +344,7 @@ class PodcastsFragment :
     override fun onDestroyView() {
         listState = binding.recyclerView.layoutManager?.onSaveInstanceState()
         binding.recyclerView.adapter = null
+        displayedGridLayout = null
         super.onDestroyView()
         realBinding = null
     }
@@ -412,7 +425,17 @@ class PodcastsFragment :
                 show()
             }
         } else {
-            podcastOptionsDialog = PodcastsOptionsDialog(this, settings, eventHorizon).apply {
+            podcastOptionsDialog = PodcastsOptionsDialog(this, settings, eventHorizon) {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val count = viewModel.queueVisiblePodcastsByUnfinishedCount()
+                    val message = if (count == 0) {
+                        getString(LR.string.podcast_player_queue_none)
+                    } else {
+                        getString(LR.string.podcast_player_queued_count, count)
+                    }
+                    showSnackBar(message)
+                }
+            }.apply {
                 show()
             }
         }
@@ -508,37 +531,61 @@ class PodcastsFragment :
         }
     }
 
+    private fun updateGridPadding() {
+        val recyclerView = realBinding?.recyclerView ?: return
+        val padding = when (settings.podcastGridLayout.value) {
+            PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> 0
+            PodcastGridLayoutType.LIST_VIEW -> resources.getDimensionPixelSize(VR.dimen.list_outer_adding)
+        }
+        recyclerView.updatePadding(padding, padding, padding, padding + latestBottomInset)
+    }
+
     private fun setupGridView(savedInstanceState: Parcelable? = listState) {
-        val layoutManager = when (settings.podcastGridLayout.value) {
-            PodcastGridLayoutType.LARGE_ARTWORK -> createGridLayoutManager(UiUtil.getGridColumnCount(false, context))
-            PodcastGridLayoutType.SMALL_ARTWORK -> createGridLayoutManager(UiUtil.getGridColumnCount(true, context))
-            PodcastGridLayoutType.LIST_VIEW -> LinearLayoutManager(activity, RecyclerView.VERTICAL, false)
+        val recyclerView = realBinding?.recyclerView ?: return
+        val newLayout = settings.podcastGridLayout.value
+        val currentManager = recyclerView.layoutManager
+        val gridColumns = when (newLayout) {
+            PodcastGridLayoutType.LARGE_ARTWORK -> UiUtil.getGridColumnCount(false, context)
+            PodcastGridLayoutType.SMALL_ARTWORK -> UiUtil.getGridColumnCount(true, context)
+            PodcastGridLayoutType.LIST_VIEW -> null
         }
-        val badgeType = settings.podcastBadgeType.value
-        val currentLayoutManager = realBinding?.recyclerView?.layoutManager
-
-        // We only want to reset the adapter if something actually changed, or else it will flash
-        if (folderAdapter?.badgeType != badgeType ||
-            (currentLayoutManager != null && currentLayoutManager::class.java != layoutManager::class.java) ||
-            (currentLayoutManager is GridLayoutManager && layoutManager is GridLayoutManager && currentLayoutManager.spanCount != layoutManager.spanCount)
-        ) {
-            folderAdapter?.badgeType = badgeType
-            realBinding?.recyclerView?.adapter = adapter
+        val managerMatches = if (gridColumns != null) {
+            currentManager is GridLayoutManager && currentManager.spanCount == gridColumns
+        } else {
+            currentManager is LinearLayoutManager && currentManager !is GridLayoutManager
         }
 
-        val listOuterPadding = resources.getDimensionPixelSize(VR.dimen.list_outer_adding)
-        viewLifecycleOwner.lifecycleScope.launch {
-            settings.bottomInset.collect {
-                val padding = when (settings.podcastGridLayout.value) {
-                    PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> 0
-                    PodcastGridLayoutType.LIST_VIEW -> listOuterPadding
-                }
-                realBinding?.recyclerView?.updatePadding(padding, padding, padding, padding + it)
+        folderAdapter?.setBadgeType(settings.podcastBadgeType.value)
+        val firstVisible = (currentManager as? LinearLayoutManager)?.findFirstVisibleItemPosition()
+
+        // Only a real layout-style switch requires new holders; the grid and
+        // list have different XML layouts. Badge changes do not.
+        val styleChanged = displayedGridLayout != null && displayedGridLayout != newLayout
+        if (styleChanged) {
+            recyclerView.adapter = null
+            recyclerView.recycledViewPool.clear()
+            recyclerView.adapter = adapter
+        }
+        displayedGridLayout = newLayout
+
+        if (!managerMatches) {
+            val newManager = if (gridColumns != null) {
+                createGridLayoutManager(gridColumns)
+            } else {
+                LinearLayoutManager(activity, RecyclerView.VERTICAL, false)
             }
+            recyclerView.layoutManager = newManager
+            if (currentManager == null) {
+                newManager.onRestoreInstanceState(savedInstanceState)
+            } else if (firstVisible != null && firstVisible != RecyclerView.NO_POSITION) {
+                newManager.scrollToPositionWithOffset(firstVisible, 0)
+            }
+        } else if (styleChanged && firstVisible != null && firstVisible != RecyclerView.NO_POSITION) {
+            // Switching large/small artwork at the same column count still
+            // replaces holders; keep the user's current position.
+            currentManager.scrollToPositionWithOffset(firstVisible, 0)
         }
-
-        realBinding?.recyclerView?.layoutManager = layoutManager
-        layoutManager.onRestoreInstanceState(savedInstanceState)
+        updateGridPadding()
     }
 
     private fun createGridLayoutManager(spanCount: Int) = GridLayoutManager(requireActivity(), spanCount)
@@ -552,36 +599,60 @@ class PodcastsFragment :
     override fun onPodcastLongClick(podcast: Podcast, view: View) {
         val popup = PopupMenu(requireContext(), view)
         popup.menu.apply {
-            add(0, MENU_QUEUE_UNFINISHED, 0, getString(LR.string.podcastgpt_queue_unfinished))
-            add(0, MENU_PLAY_OLDEST, 1, getString(LR.string.podcastgpt_play_oldest))
-            add(0, MENU_DOWNLOAD_UNFINISHED, 2, getString(LR.string.podcastgpt_download_unfinished))
-            add(0, MENU_MARK_ALL_PLAYED, 3, getString(LR.string.podcastgpt_mark_all_played))
-            add(0, MENU_PODCAST_SETTINGS, 4, getString(LR.string.podcast_settings))
-            add(0, MENU_SHARE, 5, getString(LR.string.share))
-            add(0, MENU_UNSUBSCRIBE, 6, getString(LR.string.podcastgpt_unsubscribe))
+            add(0, MENU_PLAY_ALL_UNFINISHED, 0, getString(LR.string.podcast_player_play_visible_unfinished))
+            add(0, MENU_QUEUE_UNFINISHED, 1, getString(LR.string.podcastgpt_queue_unfinished))
+            add(0, MENU_PLAY_OLDEST, 2, getString(LR.string.podcastgpt_play_oldest))
+            add(0, MENU_DOWNLOAD_ALL, 3, getString(LR.string.podcast_download_all))
+            add(0, MENU_MARK_ALL_PLAYED, 5, getString(LR.string.podcastgpt_mark_all_played))
+            add(0, MENU_PODCAST_SETTINGS, 6, getString(LR.string.podcast_settings))
+            add(0, MENU_SHARE, 7, getString(LR.string.share))
+            add(0, MENU_UNSUBSCRIBE, 8, getString(LR.string.podcastgpt_unsubscribe))
         }
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                MENU_PLAY_ALL_UNFINISHED -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.unfinishedEpisodes(podcast)
+                    if (episodes.isEmpty()) {
+                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    } else {
+                        viewModel.playUnfinishedOldestFirst(episodes)
+                    }
+                }
+
                 MENU_QUEUE_UNFINISHED, MENU_PLAY_OLDEST -> viewLifecycleOwner.lifecycleScope.launch {
                     val episodes = viewModel.unfinishedEpisodes(podcast)
                     if (episodes.isEmpty()) {
                         showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    } else if (item.itemId == MENU_PLAY_OLDEST) {
+                        viewModel.playOldestUnfinished(episodes)
                     } else {
-                        viewModel.addUnfinishedToUpNext(
-                            episodes,
-                            playNext = item.itemId == MENU_PLAY_OLDEST,
+                        val added = viewModel.addUnfinishedToUpNext(episodes)
+                        showSnackBar(
+                            if (added == 0) {
+                                getString(LR.string.podcast_player_queue_none)
+                            } else {
+                                getString(LR.string.podcast_player_queued_count, added)
+                            },
                         )
                     }
                 }
 
-                MENU_DOWNLOAD_UNFINISHED -> viewLifecycleOwner.lifecycleScope.launch {
-                    val episodes = viewModel.unfinishedEpisodes(podcast)
+                MENU_DOWNLOAD_ALL -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.episodesForOffline(podcast)
                     if (episodes.isEmpty()) {
-                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                        showSnackBar(getString(LR.string.podcast_player_download_all_nothing))
                     } else {
-                        ConfirmationDialog.downloadWarningDialog(episodes.size, resources) {
-                            viewModel.downloadUnfinished(episodes)
-                        }?.show(parentFragmentManager, "podcastgpt_download_unfinished")
+                        ConfirmationDialog()
+                            .setTitle(getString(LR.string.podcast_player_download_all_title))
+                            .setSummary(getString(LR.string.podcast_player_download_all_warning, episodes.size))
+                            .setIconId(IR.drawable.ic_download)
+                            .setButtonType(
+                                ConfirmationDialog.ButtonType.Normal(
+                                    getString(LR.string.download_warning_button, episodes.size),
+                                ),
+                            )
+                            .setOnConfirm { viewModel.downloadAllForOffline(episodes) }
+                            .show(parentFragmentManager, "podcast_player_download_all")
                     }
                 }
 

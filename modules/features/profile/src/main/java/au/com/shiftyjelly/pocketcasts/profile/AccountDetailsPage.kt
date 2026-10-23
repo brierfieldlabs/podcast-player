@@ -119,9 +119,6 @@ internal fun AccountDetailsPage(
             state.sectionsState
         }
     }
-    val recommendedPlan = remember(state.isAutomotive, state.recommendedPlan) {
-        state.recommendedPlan.takeIf { !state.isAutomotive }
-    }
     AppTheme(theme) {
         Column(
             modifier = modifier
@@ -148,17 +145,6 @@ internal fun AccountDetailsPage(
                             .padding(horizontal = 16.dp)
                             .then(if (state.isAutomotive) Modifier.padding(top = 32.dp) else Modifier),
                     )
-                }
-
-                item {
-                    AnimatedNonNullVisibility(recommendedPlan) { plan ->
-                        Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-                            NewUpgradeAccountCard(
-                                onClickSubscribe = onAccountUpgradeClick,
-                                recommendedPlan = plan,
-                            )
-                        }
-                    }
                 }
 
                 item {
