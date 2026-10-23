@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Brierfield Labs engineering standard (ChatGPT/Codex)
+
+Before any new coding task, check current GitHub issues/PRs and accepted project decisions rather than relying on conversation history. Apply the [Brierfield Labs Coding House Rules](https://github.com/brierfieldlabs/infrastructure/blob/main/procedures/coding-house-rules.md) (for authorised users), with the [public proportionate-engineering summary](https://github.com/brierfieldpathway/.github/blob/main/CONTRIBUTING.md) as accessible guidance.
+
+**Agreed scope only.** Interesting ideas belong in deferred/proposed GitHub issues until explicitly accepted. Prefer the smallest maintainable implementation, existing tools, targeted tests and security that addresses real risks. Do not invent subsystems, encryption, extra CI or unapproved features. Respect previously agreed decisions and preserve all stricter repository-specific release, data-safety and approval requirements below. Push coherent work, reconcile GitHub issues/PRs and record one concrete next step.
+
 This file provides guidance to AI coding assistants (Claude Code, Cursor, Windsurf, etc.) when working with code in this repository.
 
 ## Common Commands
