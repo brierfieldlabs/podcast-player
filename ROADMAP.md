@@ -1,6 +1,6 @@
 # Podcast Player Roadmap
 
-Version in development: **v1.2.1**. User-facing releases use SemVer only, not
+Version in development: **v1.2.2**. User-facing releases use SemVer only, not
 `test`, `rc` or an automated APK per commit.
 
 ## Accepted decisions
