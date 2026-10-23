@@ -113,7 +113,10 @@ data class Podcast(
     // Older subscriptions keep the upstream newest-first value even if nobody changed the sort.
     // Show those unmodified records oldest-first while preserving manual per-podcast choices.
     val effectiveEpisodesSortType: EpisodesSortType
-        get() = if (episodesSortTypeModified == null && episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC) {
+        get() = if (
+            episodesSortTypeModified == null &&
+            episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC
+        ) {
             EpisodesSortType.EPISODES_SORT_BY_DATE_ASC
         } else {
             episodesSortType

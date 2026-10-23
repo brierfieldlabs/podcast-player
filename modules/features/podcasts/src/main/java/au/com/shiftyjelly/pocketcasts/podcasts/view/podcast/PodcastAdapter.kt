@@ -502,10 +502,17 @@ class PodcastAdapter(
         context: Context,
     ) {
         val grouping = podcast.grouping
+        val episodeSortType = podcast.effectiveEpisodesSortType
         val groupingFunction = grouping.sortFunction
         val episodesPlusLimit: MutableList<Any> = episodes.toMutableList()
         if (episodeLimit != null && episodeLimitIndex != null && groupingFunction == null) {
-            if (searchTerm.isEmpty() && (podcast.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_ASC || podcast.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC)) {
+            if (
+                searchTerm.isEmpty() &&
+                (
+                    episodeSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_ASC ||
+                        episodeSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC
+                    )
+            ) {
                 episodesPlusLimit.add(episodeLimitIndex, EpisodeLimitRow(episodeLimit))
             }
         }
