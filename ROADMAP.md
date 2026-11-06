@@ -223,3 +223,26 @@ Version in development: **v1.2.2**. User-facing releases use SemVer only, not
    Validate it against [the v1.2.0 phone acceptance checklist](docs/podcast-player-v1.2.0-phone-acceptance.md).
 6. Only after the player is accepted: design, preview, and separately approve
    the Podcast Addict full-history import.
+
+
+## Consolidation and final acceptance (6 November 2026)
+
+- Owner decided to finish **Podcast Player** as the only maintained podcast-app fork.
+  The separate Podcast Anytime experiment was retired: unmerged PRs #5-#7 and
+  issues #1-#4 closed, its repo archived (history retained), and only its
+  dedicated CT142 CI listener stopped and deregistered. The Podcast Player
+  runner remains active. No Anytime implementation is being ported.
+- This existing v1.2.2 source batch is consolidated in Podcast Player PR #7
+  targeting main, replacing the historic stacked base-branch arrangement in
+  PRs #4 and #6. Those prior PRs are history, not separate release tracks.
+- Permit one combined exact-head **CT142 CI** debugProd APK build for phone
+  acceptance after source review. The workflow targets main while enabled
+  for the accepted build; disable it again after evidence is recorded.
+  Do not install automatically, publish a release, delete installed app data
+  or change Android package/signing identity.
+- Real-phone checks remain essential for scrolling, performance, queueing,
+  continuous oldest-first playback, download/dismiss behaviour, chapter skipping,
+  EQ, mono, branding, free sync and reliable in-place upgrade.
+- Podcast Addict is still authoritative. The read-only backup preview does not
+  authorise any migration, import or alteration of history. Its separate
+  acceptance decision remains open.

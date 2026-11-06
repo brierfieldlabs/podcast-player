@@ -3,9 +3,7 @@ name: Podcast Player Android APK build
 on:
   pull_request:
     branches:
-      - add/podcastgpt-customisations
-      - fix/podcastgpt-startup-debug-overhead
-      - feature/podcastgpt-tile-actions
+      - main
 
 permissions:
   contents: read
