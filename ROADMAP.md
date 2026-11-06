@@ -220,7 +220,7 @@ Version in development: **v1.2.2**. User-facing releases use SemVer only, not
    chapter skips, EQ, mono and the remaining per-podcast override details.
 4. Review terminology, icon, performance and remaining requested features.
 5. Confirm source validation, review PRs, then approve a single phone APK.
-   Validate it against [the v1.2.0 phone acceptance checklist](docs/podcast-player-v1.2.0-phone-acceptance.md).
+   Validate it against [the current phone acceptance checklist](docs/podcast-player-phone-acceptance.md).
 6. Only after the player is accepted: design, preview, and separately approve
    the Podcast Addict full-history import.
 

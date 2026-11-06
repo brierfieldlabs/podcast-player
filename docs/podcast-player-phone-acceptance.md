@@ -1,4 +1,4 @@
-# Podcast Player phone acceptance (v1.2.1 correction trial)
+# Podcast Player phone acceptance (v1.2.2)
 
 **Status:** Awaiting user testing. This is a trial APK, not approval to release publicly,
 merge unverified changes, or migrate Podcast Addict history.
@@ -9,7 +9,7 @@ Podcast Player during this test.
 
 ## Before installing
 
-- Confirm the APK says **Podcast Player v1.2.1** and is provided by the
+- Confirm the APK says **Podcast Player v1.2.2** and is provided by the
   Brierfield Labs GitHub build of the approved development commit.
 - Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
   installation, not a replacement that requires uninstalling or clearing data.
@@ -24,6 +24,11 @@ Podcast Player during this test.
       smoothly. Fast scrolling shows the correct artwork and unplayed badges.
 - [ ] Shows **Playlist** consistently instead of Up Next, while existing
       Pocket Casts account/web sync and queue ordering still work.
+- [ ] Existing subscriptions (especially 2.5 Admins) initially show oldest
+      episodes first unless an explicit manual sort was saved; switching to
+      newest-first and reopening the screen preserves that manual choice.
+- [ ] The Episode Chat entry, tooltip and sign-in/upgrade prompt never appear,
+      including when viewing existing episodes. Transcript/playback still work.
 - [ ] **Play oldest unfinished** starts immediately, resumes a partially played
       episode, then proceeds through newer unfinished episodes, skipping
       completed or dismissed ones. Existing queue takes precedence where expected.
@@ -33,6 +38,9 @@ Podcast Player during this test.
 - [ ] Long-press an episode and **Dismiss** it; its unplayed count drops
       without changing played status or playback position. Restore through
       **Show Dismissed**.
+- [ ] Long-press a podcast tile: verify play, queue, download, mark played,
+      details, share and unsubscribe actions, including confirmations and
+      cancellation; verify folder rearrangement still behaves as intended.
 - [ ] Long-press a podcast tile and **Download all**: confirmation counts
       only unfinished/partly played episodes, excluding dismissed/played,
       already downloaded/queued/failed or stream-only episodes. New episodes
