@@ -250,9 +250,12 @@ Version in development: **v1.2.3**. User-facing releases use SemVer only, not
 ## Scoped upstream reliability update (21 November 2026)
 
 - **v1.2.3 trial source** includes selected upstream changes #6217 (notification
-  playback), #6213 (stream length/cache), #6226 and #6227 (Chromecast session),
-  and #6337 (avoid unnecessary fingerprint downloads). These changes are
-  source-integrated only until exact-head CI and real-device acceptance pass.
+  playback), #6213 (stream length/cache), and #6226 and #6227 (Chromecast
+  session). These changes are source-integrated only until exact-head CI and
+  real-device acceptance pass.
+- The extra fingerprint-download optimisation (#6337) was reverted after exact-head
+  CI showed it depends on a generated-chapters service missing from our fork's
+  October upstream base. Do not import that wider feature just for this patch.
   No full merge of the remaining upstream commits is approved or attempted.
 - The existing Monday upstream-review workflow now checks the renamed repo
   and proposes upstream changes against main. It reuses one review branch;

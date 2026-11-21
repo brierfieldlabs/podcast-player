@@ -4,7 +4,6 @@ Podcast Player 1.2.3 (phone/tablet trial; not publicly released)
     *   Keep playing if another app removes a foreground notification (#6217).
     *   Prevent cache mixing different-sized dynamically inserted advert streams (#6213).
     *   Recover casting after a failed session and avoid spurious casting pauses (#6226, #6227).
-    *   Avoid needless episode fingerprint downloads where generated chapters do not need them (#6337).
 *   Repair the weekly upstream-review workflow for the renamed fork. Review PR only;
     no automatic merges, APK releases, installations or Podcast Addict imports.
 *   Preserve Podcast Player identity, package, signature, server-based account sync,
