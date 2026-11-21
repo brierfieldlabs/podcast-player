@@ -1,4 +1,4 @@
-# Podcast Player phone acceptance (v1.2.2)
+# Podcast Player phone acceptance (v1.2.3)
 
 **Status:** Awaiting user testing. This is a trial APK, not approval to release publicly,
 merge unverified changes, or migrate Podcast Addict history.
@@ -9,7 +9,7 @@ Podcast Player during this test.
 
 ## Before installing
 
-- Confirm the APK says **Podcast Player v1.2.2** and is provided by the
+- Confirm the APK says **Podcast Player v1.2.3** and is provided by the
   Brierfield Labs GitHub build of the approved development commit.
 - Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
   installation, not a replacement that requires uninstalling or clearing data.
@@ -60,6 +60,10 @@ Podcast Player during this test.
 - [ ] Verify per-podcast settings, notifications, downloads, podcast artwork,
       playback background/lock-screen controls, and Pocket Casts sync after
       restarting the app.
+- [ ] On a phone and Android tablet signed into the SAME Pocket Casts account,
+      check new subscriptions, played/unplayed state, episode resume positions,
+      Dismiss/Restore and Playlist order in both directions (allow for sync delay).
+      Do not expect downloaded audio or device-local EQ/download rules to sync.
 
 ## Stop and report
 

@@ -1,6 +1,6 @@
 # Podcast Player Roadmap
 
-Version in development: **v1.2.2**. User-facing releases use SemVer only, not
+Version in development: **v1.2.3**. User-facing releases use SemVer only, not
 `test`, `rc` or an automated APK per commit.
 
 ## Accepted decisions
@@ -246,3 +246,20 @@ Version in development: **v1.2.2**. User-facing releases use SemVer only, not
 - Podcast Addict is still authoritative. The read-only backup preview does not
   authorise any migration, import or alteration of history. Its separate
   acceptance decision remains open.
+
+## Scoped upstream reliability update (21 November 2026)
+
+- **v1.2.3 trial source** includes selected upstream changes #6217 (notification
+  playback), #6213 (stream length/cache), #6226 and #6227 (Chromecast session),
+  and #6337 (avoid unnecessary fingerprint downloads). These changes are
+  source-integrated only until exact-head CI and real-device acceptance pass.
+  No full merge of the remaining upstream commits is approved or attempted.
+- The existing Monday upstream-review workflow now checks the renamed repo
+  and proposes upstream changes against main. It reuses one review branch;
+  automatic merging, public release and device installation remain prohibited.
+  This workflow becomes active on main only after the reviewed PR is merged.
+- Same APK for Android phone and tablet. Account-backed listening state must
+  be checked bidirectionally on both devices; device-local downloads and audio
+  preferences do not sync. Podcast Addict remains untouched.
+- Keep current draft PR #7 pending phone/tablet acceptance; once the single
+  designated CT142 CI build passes, retrieve its artifact for local testing.
