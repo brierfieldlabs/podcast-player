@@ -14,12 +14,14 @@ changes. The original source acknowledgements and
 - [Roadmap and accepted behaviour](ROADMAP.md)
 - [Feature issues](https://github.com/brierfieldlabs/podcast-player/issues)
 - [Pending development PRs](https://github.com/brierfieldlabs/podcast-player/pulls)
-- Last trial APK: **Podcast Player v1.2.0**, reported on a phone as
-  **PodcastGPT** because the Android build-variant launcher label was missed.
-- Correction candidate: **v1.2.1**, with launcher, application, and Android
-  intent chooser labels set to **Podcast Player**. No data migration involved.
-  Version numbers are semantic;
-  development commits do not automatically result in APK builds or releases.
+- Current combined phone/tablet trial candidate: **Podcast Player v1.2.3**
+  in [draft PR #7](https://github.com/brierfieldlabs/podcast-player/pull/7).
+  It includes selected upstream playback reliability fixes and preserves the
+  established Android app ID, signing certificate and Pocket Casts web sync.
+- The [device acceptance checklist](docs/podcast-player-phone-acceptance.md)
+  covers both Android devices, offline settings and bidirectional listening
+  progress. This is not a public release or permission to import Podcast Addict.
+  Version numbers are semantic; source commits do not automatically release APKs.
 
 **Protect existing installs:** Keep the established Android application ID and
 signing certificate so installed versions and sync accounts continue to work.
