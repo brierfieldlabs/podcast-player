@@ -29,6 +29,7 @@ class PodcastsOptionsDialog(
     private var showDialog: OptionsDialog? = null
     private var sortDialog: OptionsDialog? = null
     private var badgeDialog: OptionsDialog? = null
+    private var caughtUpPodcastsDialog: OptionsDialog? = null
     private val fragmentManager: FragmentManager?
         get() = fragment.activity?.supportFragmentManager
 
@@ -90,6 +91,12 @@ class PodcastsOptionsDialog(
                     openBadgeOptions()
                     trackTapOnModalOption(ModalOption.BADGE)
                 },
+            )
+            .addTextOption(
+                titleId = LR.string.hide_caught_up_podcasts,
+                imageId = R.drawable.ic_eyeball,
+                valueId = caughtUpPodcastsLabelId(settings.hidePodcastsWithNoUnfinishedEpisodes.value),
+                click = { openCaughtUpPodcastOptions() },
             )
             .addTextOption(
                 titleId = LR.string.podcasts_menu_share_podcasts,
@@ -179,10 +186,35 @@ class PodcastsOptionsDialog(
         }
     }
 
+    private fun openCaughtUpPodcastOptions() {
+        val hidden = settings.hidePodcastsWithNoUnfinishedEpisodes.value
+        val dialog = OptionsDialog()
+            .setTitle(fragment.getString(LR.string.hide_caught_up_podcasts))
+            .setDescription(fragment.getString(LR.string.hide_caught_up_podcasts_summary))
+        for (hide in listOf(false, true)) {
+            dialog.addCheckedOption(
+                titleId = caughtUpPodcastsLabelId(hide),
+                checked = hide == hidden,
+                click = { settings.hidePodcastsWithNoUnfinishedEpisodes.set(hide, updateModifiedAt = false) },
+            )
+        }
+        fragmentManager?.let {
+            dialog.show(it, "podcasts_caught_up_podcasts")
+            caughtUpPodcastsDialog = dialog
+        }
+    }
+
+    private fun caughtUpPodcastsLabelId(hide: Boolean) = if (hide) {
+        LR.string.podcasts_caught_up_hide
+    } else {
+        LR.string.podcasts_caught_up_show
+    }
+
     fun dismiss() {
         showDialog?.dismiss()
         sortDialog?.dismiss()
         badgeDialog?.dismiss()
+        caughtUpPodcastsDialog?.dismiss()
     }
 
     private fun trackTapOnModalOption(option: ModalOption) {

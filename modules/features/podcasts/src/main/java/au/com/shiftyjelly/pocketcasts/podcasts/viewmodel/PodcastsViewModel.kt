@@ -115,21 +115,27 @@ class PodcastsViewModel @AssistedInject constructor(
                 }
             }
 
+        // Reuse the current saved preference while adopting upstream's database-backed
+        // definition of played podcasts. Nothing is removed when a feed has no episodes.
+        val hiddenPodcastUuidsFlow = settings.hidePodcastsWithNoUnfinishedEpisodes.flow
+            .flatMapLatest { hide ->
+                if (hide) podcastManager.observePlayedPodcastUuids() else flowOf(emptySet())
+            }
+
         val libraryState = combine(
             podcastsFlow,
             foldersFlow,
             settings.podcastsSortType.flow,
             userManager.getSignInState().asFlow(),
-        ) { podcasts, folders, sortType, signInState ->
+            hiddenPodcastUuidsFlow,
+        ) { podcasts, folders, sortType, signInState, hiddenPodcastUuids ->
             withContext(Dispatchers.Default) {
-                buildUiState(podcasts, folders, sortType, signInState)
+                buildUiState(podcasts, folders, sortType, signInState, hiddenPodcastUuids)
             }
         }
 
-        val unfinishedEpisodeCounts: Flow<Map<String, Int>> = combine(
-            settings.hidePodcastsWithNoUnfinishedEpisodes.flow,
-            settings.sortPodcastsByUnfinishedCount.flow,
-        ) { hide, sortByCount -> hide || sortByCount }
+        // Unfinished counts are still needed for Podcast Player's separate sort-by-count option.
+        val unfinishedEpisodeCounts: Flow<Map<String, Int>> = settings.sortPodcastsByUnfinishedCount.flow
             .flatMapLatest { required ->
                 if (required) episodeManager.observePodcastUuidToBadgeUnfinished().map { it.orEmpty() } else flowOf(emptyMap())
             }
@@ -137,22 +143,17 @@ class PodcastsViewModel @AssistedInject constructor(
         return combine(
             libraryState,
             unfinishedEpisodeCounts,
-            settings.hidePodcastsWithNoUnfinishedEpisodes.flow,
             settings.sortPodcastsByUnfinishedCount.flow,
             settings.reversePodcastsSort.flow,
-        ) { state, counts, hide, sortByCount, reverse ->
-            val visibleItems = if (hide) filterPodcastsWithoutUnfinishedEpisodes(state.items, counts) else state.items
+        ) { state, counts, sortByCount, reverse ->
             val sortedItems = if (sortByCount) {
-                sortLibraryItemsByUnfinishedCount(visibleItems, counts, reverse)
+                sortLibraryItemsByUnfinishedCount(state.items, counts, reverse)
             } else if (reverse) {
-                visibleItems.reversed()
+                state.items.reversed()
             } else {
-                visibleItems
+                state.items
             }
-            state.copy(
-                items = sortedItems,
-                hasHiddenPodcasts = hide && visibleItems != state.items,
-            )
+            state.copy(items = sortedItems)
         }
     }
 
@@ -161,20 +162,46 @@ class PodcastsViewModel @AssistedInject constructor(
         folders: List<FolderItem.Folder>,
         sortType: PodcastsSortType,
         signInState: SignInState,
-    ) = UiState(
-        items = when {
-            signInState.isNoAccountOrFree -> buildPodcastItems(podcasts, sortType)
+        hiddenPodcastUuids: Set<String>,
+    ): UiState {
+        val unfilteredItems = buildItems(podcasts, folders, sortType, signInState)
+        val items = if (hiddenPodcastUuids.isEmpty()) {
+            unfilteredItems
+        } else {
+            buildItems(
+                podcasts = podcasts.withoutHidden(hiddenPodcastUuids),
+                folders = folders.map { it.copy(podcasts = it.podcasts.withoutHidden(hiddenPodcastUuids)) },
+                sortType = sortType,
+                signInState = signInState,
+            )
+        }
+        return UiState(
+            items = items,
+            unfilteredItems = unfilteredItems,
+            folder = folders.find { it.uuid == folderUuid }?.folder,
+            isSignedInAsPlusOrPatron = signInState.isSignedInAsPlusOrPatron,
+            hasHiddenPodcasts = items != unfilteredItems,
+        )
+    }
 
-            folderUuid == null -> buildHomeFolderItems(podcasts, folders, sortType)
+    private fun List<Podcast>.withoutHidden(hiddenPodcastUuids: Set<String>): List<Podcast> =
+        if (hiddenPodcastUuids.isEmpty()) this else filterNot { it.uuid in hiddenPodcastUuids }
 
-            else -> folders.find { it.uuid == folderUuid }
-                ?.podcasts
-                ?.map(FolderItem::Podcast)
-                .orEmpty()
-        },
-        folder = folders.find { it.uuid == folderUuid }?.folder,
-        isSignedInAsPlusOrPatron = signInState.isSignedInAsPlusOrPatron,
-    )
+    private fun buildItems(
+        podcasts: List<Podcast>,
+        folders: List<FolderItem.Folder>,
+        sortType: PodcastsSortType,
+        signInState: SignInState,
+    ): List<FolderItem> = when {
+        signInState.isNoAccountOrFree -> buildPodcastItems(podcasts, sortType)
+
+        folderUuid == null -> buildHomeFolderItems(podcasts, folders, sortType)
+
+        else -> folders.find { it.uuid == folderUuid }
+            ?.podcasts
+            ?.map(FolderItem::Podcast)
+            .orEmpty()
+    }
 
     private fun buildHomeFolderItems(podcasts: List<Podcast>, folders: List<FolderItem>, podcastSortType: PodcastsSortType) = when (podcastSortType) {
         PodcastsSortType.EPISODE_DATE_NEWEST_TO_OLDEST,
@@ -241,16 +268,17 @@ class PodcastsViewModel @AssistedInject constructor(
     val refreshStateFlow = settings.refreshStateFlow
 
     suspend fun reorderItems(items: List<FolderItem>) {
-        if (settings.hidePodcastsWithNoUnfinishedEpisodes.value || settings.sortPodcastsByUnfinishedCount.value || settings.reversePodcastsSort.value) return
+        if (settings.sortPodcastsByUnfinishedCount.value || settings.reversePodcastsSort.value) return
 
         eventHorizon.track(PodcastsListReorderedEvent)
+        val itemsWithHidden = uiState.value.unfilteredItems.withReorderedVisibleItems(items)
         viewModelScope.launch {
             if (folderUuid == null) {
                 settings.podcastsSortType.set(PodcastsSortType.DRAG_DROP, updateModifiedAt = true)
             } else {
                 folderManager.updateSortType(folderUuid, PodcastsSortType.DRAG_DROP)
             }
-            folderManager.updateSortPosition(items)
+            folderManager.updateSortPosition(itemsWithHidden)
         }
 
         // Wait until the UI state is synchronized with the ordered items.
@@ -263,6 +291,16 @@ class PodcastsViewModel @AssistedInject constructor(
                 .takeWhile { stateUuids -> stateUuids.size == sortedUuids.size && stateUuids != sortedUuids }
                 .collect()
         }
+    }
+
+    // Keep hidden items in their saved slots when the visible podcasts are rearranged.
+    private fun List<FolderItem>.withReorderedVisibleItems(visibleItems: List<FolderItem>): List<FolderItem> {
+        val visibleUuids = visibleItems.mapTo(HashSet(), FolderItem::uuid)
+        val reorderedVisibleItems = visibleItems.iterator()
+        val merged = map { item ->
+            if (item.uuid in visibleUuids && reorderedVisibleItems.hasNext()) reorderedVisibleItems.next() else item
+        }
+        return merged + reorderedVisibleItems.asSequence()
     }
 
     suspend fun unfinishedEpisodes(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
@@ -442,6 +480,7 @@ class PodcastsViewModel @AssistedInject constructor(
     data class UiState(
         val isLoadingItems: Boolean = false,
         val items: List<FolderItem> = emptyList(),
+        val unfilteredItems: List<FolderItem> = items,
         val folder: Folder? = null,
         val isSignedInAsPlusOrPatron: Boolean = false,
         val hasHiddenPodcasts: Boolean = false,

@@ -14,9 +14,9 @@ changes. The original source acknowledgements and
 - [Roadmap and accepted behaviour](ROADMAP.md)
 - [Feature issues](https://github.com/brierfieldlabs/podcast-player/issues)
 - [Pending development PRs](https://github.com/brierfieldlabs/podcast-player/pulls)
-- Current combined phone/tablet trial candidate: **Podcast Player v1.2.3**
+- Current pending phone/tablet trial source: **Podcast Player v1.2.4**
   in [draft PR #7](https://github.com/brierfieldlabs/podcast-player/pull/7).
-  It includes selected upstream playback reliability fixes and preserves the
+  It includes the caught-up podcast menu move and selected upstream playback reliability fixes; it preserves the
   established Android app ID, signing certificate and Pocket Casts web sync.
 - The [device acceptance checklist](docs/podcast-player-phone-acceptance.md)
   covers both Android devices, offline settings and bidirectional listening

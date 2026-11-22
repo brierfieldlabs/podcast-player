@@ -193,8 +193,7 @@ class PodcastsFragment :
             commitItems = viewModel::reorderItems,
             canDragHolder = { it !is FolderAdapter.PodcastViewHolder },
             canDrag = {
-                !settings.hidePodcastsWithNoUnfinishedEpisodes.value &&
-                    !settings.sortPodcastsByUnfinishedCount.value &&
+                !settings.sortPodcastsByUnfinishedCount.value &&
                     !settings.reversePodcastsSort.value
             },
         )

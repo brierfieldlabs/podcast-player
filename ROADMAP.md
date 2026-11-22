@@ -1,6 +1,6 @@
 # Podcast Player Roadmap
 
-Version in development: **v1.2.3**. User-facing releases use SemVer only, not
+Version in development: **v1.2.4**. User-facing releases use SemVer only, not
 `test`, `rc` or an automated APK per commit.
 
 ## Accepted decisions
@@ -266,3 +266,22 @@ Version in development: **v1.2.3**. User-facing releases use SemVer only, not
   preferences do not sync. Podcast Addict remains untouched.
 - Keep current draft PR #7 pending phone/tablet acceptance; once the single
   designated CT142 CI build passes, retrieve its artifact for local testing.
+
+## Caught-up podcasts (v1.2.4, owner-approved 22 November 2026)
+
+- Replace our badge-count hide implementation with the accepted upstream
+  database-backed approach (Pocket Casts PR #6203) and its order-preserving
+  reordering logic, adapted for Podcast Player's separate fewest-unfinished sort.
+- **Podcasts -> three-dot menu -> Hide caught-up podcasts -> Show / Hide**,
+  rather than a duplicate toggle under Playback settings. Keep the existing
+  device-local preference key and current Show/Hide selection.
+- Only hide subscribed feeds with **at least one episode** and **no non-dismissed
+  unplayed/in-progress episodes**. Unlike an upstream SQL edge case, a feed
+  whose episodes were all dismissed also hides. Empty feeds remain visible;
+  folders remain visible; feeds reappear if an unfinished episode arrives.
+- Keep existing podcast-tile long-press actions, so do not enable drag gestures
+  on podcast tiles or introduce upstream's remote feature flag. Preserve
+  unfiltered item slots when allowed drag-reordering occurs.
+- Implemented source pending exact-head Android compilation, a new CI trial
+  APK, and user phone/tablet acceptance. Prior v1.2.3 CI evidence and APK
+  remain valid only for that earlier source and do not cover v1.2.4.

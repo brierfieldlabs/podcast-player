@@ -1,3 +1,13 @@
+Podcast Player 1.2.4 (phone/tablet trial source, pending CI and approval)
+----------------------------------------------------------------------
+*   Move Hide caught-up podcasts from Playback settings to the Podcasts tab
+    three-dot menu, with a Show/Hide sheet following the accepted Pocket Casts
+    upstream approach (#6203).
+*   Use reactive episode-database state rather than badge-count guesses. Preserve
+    ordering, folders, empty feeds, previously saved preference, and reappearance
+    on the arrival of an unfinished episode. Fully dismissed feeds also hide.
+*   Preserve Podcast Player playback, queue, download, signing and sync behaviour.
+
 Podcast Player 1.2.3 (phone/tablet trial; not publicly released)
 ------------------------------------------------------------
 *   Playback reliability fixes selected from upstream:
