@@ -172,11 +172,14 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                             url = url,
                             episodes = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast).map { episode ->
                                 PodcastAddictBackupInspector.LocalEpisode(
+                                    uuid = episode.uuid,
                                     enclosure = episode.downloadUrl,
                                     publicationDate = episode.publishedDate.time,
                                     positionSeconds = episode.playedUpTo,
                                     favourite = episode.isStarred,
                                     playingStatus = episode.playingStatus,
+                                    lastPlaybackDate = episode.lastPlaybackInteraction,
+                                    durationSeconds = episode.duration,
                                 )
                             },
                         )
@@ -222,6 +225,8 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         result.episodes.markInProgress,
                         result.episodes.unresolvedState,
                         result.episodes.sourceEpisodesWithoutExactMatch,
+                        result.episodes.changes.size,
+                        result.episodes.historyDifferences,
                     ) + "\n" + (
                         result.statistics?.let {
                             getString(

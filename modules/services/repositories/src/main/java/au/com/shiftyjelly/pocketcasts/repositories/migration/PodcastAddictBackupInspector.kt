@@ -29,11 +29,14 @@ class PodcastAddictBackupInspector @Inject constructor(
     )
 
     data class LocalEpisode(
+        val uuid: String,
         val enclosure: String?,
         val publicationDate: Long,
         val positionSeconds: Double,
         val favourite: Boolean,
         val playingStatus: EpisodePlayingStatus,
+        val lastPlaybackDate: Long?,
+        val durationSeconds: Double,
     )
 
     data class EpisodeMatches(
@@ -48,6 +51,8 @@ class PodcastAddictBackupInspector @Inject constructor(
         val markInProgress: Int,
         val unresolvedState: Int,
         val sourceEpisodesWithoutExactMatch: Int,
+        val changes: List<PodcastAddictEpisodeChange>,
+        val historyDifferences: Int,
     )
 
     data class SourceStatistics(
@@ -72,6 +77,7 @@ class PodcastAddictBackupInspector @Inject constructor(
             val exactMatchedLocalFeeds: Int,
             val ambiguousFeedMatches: Int,
             val missingSubscriptions: Int,
+            val missingFeedUrls: List<String>,
             val destinationOnlySubscriptions: Int,
             val episodes: EpisodeMatches,
             val statistics: SourceStatistics?,
@@ -162,7 +168,8 @@ class PodcastAddictBackupInspector @Inject constructor(
                     localSubscribedFeedCount = subscribedFeeds.size,
                     exactMatchedLocalFeeds = podcasts.exactMatches,
                     ambiguousFeedMatches = podcasts.ambiguousMatches,
-                    missingSubscriptions = podcasts.missingSubscriptions,
+                    missingSubscriptions = podcasts.missingFeedUrls.size,
+                    missingFeedUrls = podcasts.missingFeedUrls,
                     destinationOnlySubscriptions = podcasts.destinationOnlySubscriptions,
                     episodes = episodeMatches,
                     statistics = statistics,
@@ -185,6 +192,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         val positionMs: Long?,
         val favourite: Boolean?,
         val seenStatus: Int?,
+        val playbackDate: Long?,
     )
 
     /**
@@ -215,7 +223,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         val sourceEpisodes = mutableMapOf<Pair<Long, String>, MutableList<SourceEpisode>>()
         database.rawQuery(
             "SELECT podcast_id, download_url, _id, publication_date, position_to_resume, " +
-                "favorite, seen_status FROM episodes NOT INDEXED",
+                "favorite, seen_status, playbackDate FROM episodes NOT INDEXED",
             null,
         ).use { rows ->
             while (rows.moveToNext()) {
@@ -230,16 +238,23 @@ class PodcastAddictBackupInspector @Inject constructor(
                     if (rows.isNull(4)) null else rows.getLong(4),
                     if (rows.isNull(5) || rows.getInt(5) !in 0..1) null else rows.getInt(5) == 1,
                     if (rows.isNull(6)) null else rows.getInt(6),
+                    if (rows.isNull(7)) null else rows.getLong(7),
                 )
                 sourceEpisodes.getOrPut(feedId to enclosure) { mutableListOf() }.add(source)
             }
         }
         val completedIds = mutableSetOf<Long>()
+        val lastListened = mutableMapOf<Long, Long>()
         database.rawQuery(
-            "SELECT episode_id FROM playback_listening_history NOT INDEXED WHERE completed=1",
+            "SELECT episode_id, completed, last_listened_at FROM playback_listening_history NOT INDEXED",
             null,
         ).use { rows ->
-            while (rows.moveToNext()) completedIds.add(rows.getLong(0))
+            while (rows.moveToNext()) {
+                val episodeId = rows.getLong(0)
+                if (rows.getInt(1) == 1) completedIds.add(episodeId)
+                val listenedAt = rows.getLong(2)
+                if (listenedAt > (lastListened[episodeId] ?: 0L)) lastListened[episodeId] = listenedAt
+            }
         }
         var exact = 0
         var ambiguous = 0
@@ -251,6 +266,9 @@ class PodcastAddictBackupInspector @Inject constructor(
         var markUnplayed = 0
         var markInProgress = 0
         var unresolvedState = 0
+        var historyDifferences = 0
+        val now = System.currentTimeMillis()
+        val changes = mutableListOf<PodcastAddictEpisodeChange>()
         for ((url, ids) in sourceFeeds) {
             val targets = targetFeeds[url] ?: continue
             if (ids.size != 1 || targets.size != 1) {
@@ -279,26 +297,51 @@ class PodcastAddictBackupInspector @Inject constructor(
                     continue
                 }
                 exact++
-                if (
-                    source.positionMs != null && source.positionMs >= 0 &&
-                    kotlin.math.abs(source.positionMs / 1000.0 - target.positionSeconds) >= 1.0
-                ) {
-                    resumeDifferences++
-                }
-                if (source.favourite != null && source.favourite != target.favourite) favouriteDifferences++
                 if (source.id in completedIds) completionEvidence++
-                when (PodcastAddictEpisodeState.propose(source.seenStatus, source.positionMs)) {
-                    null -> unresolvedState++
+                val proposed = PodcastAddictEpisodeState.propose(source.seenStatus, source.positionMs)
+                val positionMs = source.positionMs
+                val favourite = source.favourite
+                if (proposed == null || positionMs == null || favourite == null) {
+                    unresolvedState++
+                    continue
+                }
+                val positionSeconds = positionMs / 1000.0
+                if (target.durationSeconds > 0 && positionSeconds > target.durationSeconds) {
+                    unresolvedState++
+                    continue
+                }
+                val historyDate = maxOf(source.playbackDate ?: 0L, lastListened[source.id] ?: 0L)
+                    .takeIf { it in 1..now }
+                    ?: target.lastPlaybackDate
+                if (positionSeconds != target.positionSeconds) resumeDifferences++
+                if (favourite != target.favourite) favouriteDifferences++
+                if (historyDate != target.lastPlaybackDate) historyDifferences++
+                when (proposed) {
                     target.playingStatus -> Unit
                     EpisodePlayingStatus.COMPLETED -> markPlayed++
                     EpisodePlayingStatus.NOT_PLAYED -> markUnplayed++
                     EpisodePlayingStatus.IN_PROGRESS -> markInProgress++
+                }
+                val before = PodcastAddictEpisodeValues(
+                    target.playingStatus, target.positionSeconds, target.favourite, target.lastPlaybackDate,
+                )
+                val after = PodcastAddictEpisodeValues(proposed, positionSeconds, favourite, historyDate)
+                if (before != after) {
+                    changes += PodcastAddictEpisodeChange(
+                        uuid = target.uuid,
+                        feedUrl = url,
+                        enclosure = enclosure,
+                        publicationDate = target.publicationDate,
+                        before = before,
+                        after = after,
+                    )
                 }
             }
         }
         return EpisodeMatches(
             exact, ambiguous, unmatched, resumeDifferences, favouriteDifferences, completionEvidence,
             markPlayed, markUnplayed, markInProgress, unresolvedState, sourceEpisodeCount - exact,
+            changes, historyDifferences,
         )
     }
 
@@ -308,7 +351,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         val subscribedFeedCount: Int,
         val exactMatches: Int,
         val ambiguousMatches: Int,
-        val missingSubscriptions: Int,
+        val missingFeedUrls: List<String>,
         val destinationOnlySubscriptions: Int,
     )
 
@@ -344,7 +387,9 @@ class PodcastAddictBackupInspector @Inject constructor(
             ambiguousMatches = matchOccurrences.count { (url, occurrences) ->
                 occurrences > 1 || (localFeeds[url] ?: 0) > 1
             },
-            missingSubscriptions = matchOccurrences.count { (url, occurrences) -> occurrences == 1 && url !in localFeeds },
+            missingFeedUrls = matchOccurrences.filter { (url, occurrences) ->
+                occurrences == 1 && url !in localFeeds
+            }.keys.sorted(),
             destinationOnlySubscriptions = localFeeds.keys.count { it.isNotEmpty() && it !in matchOccurrences },
         )
     }
