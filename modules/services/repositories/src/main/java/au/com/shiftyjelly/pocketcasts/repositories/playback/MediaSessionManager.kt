@@ -535,8 +535,7 @@ class MediaSessionManager(
                 }
             },
             onStop = {
-                val sourceView = media3RequestSource()
-                scope.launch { commandMutex.withLock { playbackManager.pauseSuspend(sourceView = sourceView) } }
+                LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Media3: ignoring stop while casting")
             },
         )
         castStatePlayer = player
@@ -1187,7 +1186,7 @@ class MediaSessionManager(
 
     private fun updateUpNext(upNext: UpNextQueue.State, useEpisodeArtwork: Boolean) {
         try {
-            mediaSession?.setQueueTitle("Up Next")
+            mediaSession?.setQueueTitle(context.getString(LR.string.up_next))
             if (upNext is UpNextQueue.State.Loaded) {
                 updateMetadata(upNext.episode, useEpisodeArtwork)
 

@@ -2,25 +2,31 @@ package au.com.shiftyjelly.pocketcasts.podcasts.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.models.entity.Folder
 import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
 import au.com.shiftyjelly.pocketcasts.models.to.FolderItem
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodeDownloadStatus
 import au.com.shiftyjelly.pocketcasts.models.type.PodcastsSortType
 import au.com.shiftyjelly.pocketcasts.models.type.SignInState
-import au.com.shiftyjelly.pocketcasts.podcasts.view.folders.SuggestedFoldersPopupPolicy
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.BadgeType
-import au.com.shiftyjelly.pocketcasts.repositories.ads.BlazeAdsManager
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.confirmedOfflineDownloadUuids
+import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.FolderManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
-import au.com.shiftyjelly.pocketcasts.repositories.podcast.SuggestedFoldersManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.UserManager
 import com.automattic.eventhorizon.EpisodeRecentlyPlayedSortOptionTooltipDismissedEvent
 import com.automattic.eventhorizon.EpisodeRecentlyPlayedSortOptionTooltipShownEvent
 import com.automattic.eventhorizon.EventHorizon
 import com.automattic.eventhorizon.FolderShownEvent
+import com.automattic.eventhorizon.PodcastUnsubscribedEvent
 import com.automattic.eventhorizon.PodcastsListReorderedEvent
 import com.automattic.eventhorizon.PodcastsListShownEvent
 import com.automattic.eventhorizon.PullToRefreshSourceType
@@ -31,7 +37,6 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,22 +58,17 @@ import kotlinx.coroutines.withContext
 class PodcastsViewModel @AssistedInject constructor(
     private val podcastManager: PodcastManager,
     private val episodeManager: EpisodeManager,
+    private val playbackManager: PlaybackManager,
+    private val downloadQueue: DownloadQueue,
     private val folderManager: FolderManager,
     private val settings: Settings,
     private val eventHorizon: EventHorizon,
-    private val suggestedFoldersManager: SuggestedFoldersManager,
-    private val suggestedFoldersPopupPolicy: SuggestedFoldersPopupPolicy,
     private val userManager: UserManager,
     private val notificationHelper: NotificationHelper,
-    blazeAdsManager: BlazeAdsManager,
     @Assisted private val folderUuid: String?,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UiState(isLoadingItems = true))
     val uiState = _uiState.asStateFlow()
-
-    val areSuggestedFoldersAvailable = suggestedFoldersManager.observeSuggestedFolders()
-        .map { it.isNotEmpty() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = false)
 
     private val notificationsPermissionState = MutableStateFlow(notificationHelper.hasNotificationsPermission())
     val notificationPromptState = combine(
@@ -80,12 +80,6 @@ class PodcastsViewModel @AssistedInject constructor(
             hasShownPromptBefore = hasShownPermissionBefore,
         )
     }
-
-    val activeAd = if (folderUuid == null) {
-        blazeAdsManager.findPodcastListAd()
-    } else {
-        flowOf(null)
-    }.stateIn(viewModelScope, started = SharingStarted.Eagerly, initialValue = null)
 
     init {
         viewModelScope.launch {
@@ -121,15 +115,45 @@ class PodcastsViewModel @AssistedInject constructor(
                 }
             }
 
-        return combine(
+        // Reuse the current saved preference while adopting upstream's database-backed
+        // definition of played podcasts. Nothing is removed when a feed has no episodes.
+        val hiddenPodcastUuidsFlow = settings.hidePodcastsWithNoUnfinishedEpisodes.flow
+            .flatMapLatest { hide ->
+                if (hide) podcastManager.observePlayedPodcastUuids() else flowOf(emptySet())
+            }
+
+        val libraryState = combine(
             podcastsFlow,
             foldersFlow,
             settings.podcastsSortType.flow,
             userManager.getSignInState().asFlow(),
-        ) { podcasts, folders, sortType, signInState ->
+            hiddenPodcastUuidsFlow,
+        ) { podcasts, folders, sortType, signInState, hiddenPodcastUuids ->
             withContext(Dispatchers.Default) {
-                buildUiState(podcasts, folders, sortType, signInState)
+                buildUiState(podcasts, folders, sortType, signInState, hiddenPodcastUuids)
             }
+        }
+
+        // Unfinished counts are still needed for Podcast Player's separate sort-by-count option.
+        val unfinishedEpisodeCounts: Flow<Map<String, Int>> = settings.sortPodcastsByUnfinishedCount.flow
+            .flatMapLatest { required ->
+                if (required) episodeManager.observePodcastUuidToBadgeUnfinished().map { it.orEmpty() } else flowOf(emptyMap())
+            }
+
+        return combine(
+            libraryState,
+            unfinishedEpisodeCounts,
+            settings.sortPodcastsByUnfinishedCount.flow,
+            settings.reversePodcastsSort.flow,
+        ) { state, counts, sortByCount, reverse ->
+            val sortedItems = if (sortByCount) {
+                sortLibraryItemsByUnfinishedCount(state.items, counts, reverse)
+            } else if (reverse) {
+                state.items.reversed()
+            } else {
+                state.items
+            }
+            state.copy(items = sortedItems)
         }
     }
 
@@ -138,20 +162,46 @@ class PodcastsViewModel @AssistedInject constructor(
         folders: List<FolderItem.Folder>,
         sortType: PodcastsSortType,
         signInState: SignInState,
-    ) = UiState(
-        items = when {
-            signInState.isNoAccountOrFree -> buildPodcastItems(podcasts, sortType)
+        hiddenPodcastUuids: Set<String>,
+    ): UiState {
+        val unfilteredItems = buildItems(podcasts, folders, sortType, signInState)
+        val items = if (hiddenPodcastUuids.isEmpty()) {
+            unfilteredItems
+        } else {
+            buildItems(
+                podcasts = podcasts.withoutHidden(hiddenPodcastUuids),
+                folders = folders.map { it.copy(podcasts = it.podcasts.withoutHidden(hiddenPodcastUuids)) },
+                sortType = sortType,
+                signInState = signInState,
+            )
+        }
+        return UiState(
+            items = items,
+            unfilteredItems = unfilteredItems,
+            folder = folders.find { it.uuid == folderUuid }?.folder,
+            isSignedInAsPlusOrPatron = signInState.isSignedInAsPlusOrPatron,
+            hasHiddenPodcasts = items != unfilteredItems,
+        )
+    }
 
-            folderUuid == null -> buildHomeFolderItems(podcasts, folders, sortType)
+    private fun List<Podcast>.withoutHidden(hiddenPodcastUuids: Set<String>): List<Podcast> =
+        if (hiddenPodcastUuids.isEmpty()) this else filterNot { it.uuid in hiddenPodcastUuids }
 
-            else -> folders.find { it.uuid == folderUuid }
-                ?.podcasts
-                ?.map(FolderItem::Podcast)
-                .orEmpty()
-        },
-        folder = folders.find { it.uuid == folderUuid }?.folder,
-        isSignedInAsPlusOrPatron = signInState.isSignedInAsPlusOrPatron,
-    )
+    private fun buildItems(
+        podcasts: List<Podcast>,
+        folders: List<FolderItem.Folder>,
+        sortType: PodcastsSortType,
+        signInState: SignInState,
+    ): List<FolderItem> = when {
+        signInState.isNoAccountOrFree -> buildPodcastItems(podcasts, sortType)
+
+        folderUuid == null -> buildHomeFolderItems(podcasts, folders, sortType)
+
+        else -> folders.find { it.uuid == folderUuid }
+            ?.podcasts
+            ?.map(FolderItem::Podcast)
+            .orEmpty()
+    }
 
     private fun buildHomeFolderItems(podcasts: List<Podcast>, folders: List<FolderItem>, podcastSortType: PodcastsSortType) = when (podcastSortType) {
         PodcastsSortType.EPISODE_DATE_NEWEST_TO_OLDEST,
@@ -218,14 +268,17 @@ class PodcastsViewModel @AssistedInject constructor(
     val refreshStateFlow = settings.refreshStateFlow
 
     suspend fun reorderItems(items: List<FolderItem>) {
+        if (settings.sortPodcastsByUnfinishedCount.value || settings.reversePodcastsSort.value) return
+
         eventHorizon.track(PodcastsListReorderedEvent)
+        val itemsWithHidden = uiState.value.unfilteredItems.withReorderedVisibleItems(items)
         viewModelScope.launch {
             if (folderUuid == null) {
                 settings.podcastsSortType.set(PodcastsSortType.DRAG_DROP, updateModifiedAt = true)
             } else {
                 folderManager.updateSortType(folderUuid, PodcastsSortType.DRAG_DROP)
             }
-            folderManager.updateSortPosition(items)
+            folderManager.updateSortPosition(itemsWithHidden)
         }
 
         // Wait until the UI state is synchronized with the ordered items.
@@ -238,6 +291,127 @@ class PodcastsViewModel @AssistedInject constructor(
                 .takeWhile { stateUuids -> stateUuids.size == sortedUuids.size && stateUuids != sortedUuids }
                 .collect()
         }
+    }
+
+    // Keep hidden items in their saved slots when the visible podcasts are rearranged.
+    private fun List<FolderItem>.withReorderedVisibleItems(visibleItems: List<FolderItem>): List<FolderItem> {
+        val visibleUuids = visibleItems.mapTo(HashSet(), FolderItem::uuid)
+        val reorderedVisibleItems = visibleItems.iterator()
+        val merged = map { item ->
+            if (item.uuid in visibleUuids && reorderedVisibleItems.hasNext()) reorderedVisibleItems.next() else item
+        }
+        return merged + reorderedVisibleItems.asSequence()
+    }
+
+    suspend fun unfinishedEpisodes(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+        .filter { !it.isFinished && !it.isArchived }
+        .sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+
+    suspend fun episodesNotPlayed(podcast: Podcast): List<PodcastEpisode> = episodeManager.findEpisodesByPodcastOrdered(podcast)
+        .filter { !it.isFinished && !it.isArchived }
+
+    fun addUnfinishedToUpNext(episodes: List<PodcastEpisode>): Int {
+        val queue = playbackManager.upNextQueue
+        val alreadyQueued = queue.queueEpisodes.mapTo(mutableSetOf()) { it.uuid }
+        queue.currentEpisode?.uuid?.let(alreadyQueued::add)
+        val room = (settings.getMaxUpNextEpisodes() - queue.queueEpisodes.size).coerceAtLeast(0)
+        if (room == 0) return 0
+
+        val newEpisodes = episodes.asSequence()
+            .filter { !it.isFinished && !it.isArchived }
+            .filter { alreadyQueued.add(it.uuid) }
+            .take(room)
+            .toList()
+        if (newEpisodes.isNotEmpty()) {
+            playbackManager.playEpisodesLast(newEpisodes, SourceView.PODCAST_LIST)
+        }
+        return newEpisodes.size
+    }
+
+    // Queue across podcasts from fewest unfinished first, with each podcast's
+    // episodes playing oldest to newest. Preserve the existing listening queue.
+    suspend fun queueVisiblePodcastsByUnfinishedCount(): Int {
+        val podcasts = uiState.value.items
+            .filterIsInstance<FolderItem.Podcast>()
+            .map { it.podcast }
+        val room = (settings.getMaxUpNextEpisodes() - playbackManager.upNextQueue.queueEpisodes.size)
+            .coerceAtLeast(0)
+        if (podcasts.isEmpty() || room == 0) return 0
+        val byCount = withContext(Dispatchers.IO) {
+            podcasts.map { podcast -> podcast to unfinishedEpisodes(podcast) }
+                .filter { (_, episodes) -> episodes.isNotEmpty() }
+                .sortedWith(
+                    compareBy<Pair<Podcast, List<PodcastEpisode>>> { it.second.size }
+                        .thenBy { it.first.title },
+                )
+        }
+        val alreadyQueued = playbackManager.upNextQueue.queueEpisodes.mapTo(mutableSetOf()) { it.uuid }
+        playbackManager.upNextQueue.currentEpisode?.uuid?.let(alreadyQueued::add)
+        val toQueue = buildList {
+            for ((_, episodes) in byCount) {
+                for (episode in episodes) {
+                    if (size >= room) break
+                    if (alreadyQueued.add(episode.uuid)) add(episode)
+                }
+                if (size >= room) break
+            }
+        }
+        if (toQueue.isNotEmpty()) {
+            playbackManager.playEpisodesLast(toQueue, SourceView.PODCAST_LIST)
+        }
+        return toQueue.size
+    }
+
+    fun playOldestUnfinished(episodes: List<PodcastEpisode>) {
+        val oldest = episodes.firstOrNull() ?: return
+        // Start listening now. With continuous playback enabled, the next
+        // unfinished episode will follow from this podcast automatically.
+        playbackManager.playEpisodes(listOf(oldest), SourceView.PODCAST_LIST, replaceQueue = true)
+    }
+
+    fun playUnfinishedOldestFirst(episodes: List<PodcastEpisode>) {
+        if (episodes.isEmpty()) return
+        playbackManager.playEpisodes(episodes.take(settings.getMaxUpNextEpisodes()), SourceView.PODCAST_LIST, replaceQueue = true)
+    }
+
+    /**
+     * All unfinished, non-dismissed and downloadable podcast episodes.
+     * Downloaded, in-flight, failed or HLS-only episodes are not queued again.
+     */
+    suspend fun episodesForOffline(podcast: Podcast): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast)
+            .eligibleForOfflineDownload()
+    }
+
+    fun downloadAllForOffline(episodes: List<PodcastEpisode>) {
+        val first = episodes.firstOrNull() ?: return
+        val confirmedUuids = episodes.mapTo(mutableSetOf()) { it.uuid }
+        viewModelScope.launch(Dispatchers.IO) {
+            val podcast = podcastManager.findPodcastByUuid(first.podcastUuid) ?: return@launch
+            val stillEligible = episodeManager.confirmedOfflineDownloadUuids(podcast, confirmedUuids)
+            if (stillEligible.isNotEmpty()) {
+                downloadQueue.enqueueAll(
+                    stillEligible,
+                    DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                    SourceView.PODCAST_LIST,
+                )
+            }
+        }
+    }
+
+    fun markEpisodesPlayed(episodes: List<PodcastEpisode>) {
+        viewModelScope.launch {
+            episodeManager.markAllAsPlayed(episodes, playbackManager, podcastManager)
+        }
+    }
+
+    suspend fun downloadedEpisodeCount(podcast: Podcast): Int = withContext(Dispatchers.IO) {
+        podcastManager.countEpisodesInPodcastWithStatusBlocking(podcast.uuid, EpisodeDownloadStatus.Downloaded)
+    }
+
+    fun unsubscribe(podcast: Podcast) {
+        podcastManager.unsubscribeAsync(podcast.uuid, SourceView.PODCAST_LIST)
+        eventHorizon.track(PodcastUnsubscribedEvent(uuid = podcast.uuid, source = SourceView.PODCAST_LIST.analyticsValue))
     }
 
     fun refreshPodcasts() {
@@ -292,20 +466,6 @@ class PodcastsViewModel @AssistedInject constructor(
         }
     }
 
-    private var refreshSuggestedFoldersJob: Job? = null
-
-    fun refreshSuggestedFolders() {
-        if (refreshSuggestedFoldersJob?.isActive != true) {
-            refreshSuggestedFoldersJob = viewModelScope.launch {
-                suggestedFoldersManager.refreshSuggestedFolders()
-            }
-        }
-    }
-
-    fun isEligibleForSuggestedFoldersPopup(): Boolean {
-        return suggestedFoldersPopupPolicy.isEligibleForPopup()
-    }
-
     fun shouldShowTooltip() = settings.showPodcastsRecentlyPlayedSortOrderTooltip.value
 
     fun onTooltipShown() {
@@ -320,8 +480,10 @@ class PodcastsViewModel @AssistedInject constructor(
     data class UiState(
         val isLoadingItems: Boolean = false,
         val items: List<FolderItem> = emptyList(),
+        val unfilteredItems: List<FolderItem> = items,
         val folder: Folder? = null,
         val isSignedInAsPlusOrPatron: Boolean = false,
+        val hasHiddenPodcasts: Boolean = false,
     )
 
     @AssistedFactory

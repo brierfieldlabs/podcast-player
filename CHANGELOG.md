@@ -1,6 +1,28 @@
+Podcast Player 1.2.4 (phone/tablet trial source, pending CI and approval)
+----------------------------------------------------------------------
+*   Move Hide caught-up podcasts from Playback settings to the Podcasts tab
+    three-dot menu, with a Show/Hide sheet following the accepted Pocket Casts
+    upstream approach (#6203).
+*   Use reactive episode-database state rather than badge-count guesses. Preserve
+    ordering, folders, empty feeds, previously saved preference, and reappearance
+    on the arrival of an unfinished episode. Fully dismissed feeds also hide.
+*   Preserve Podcast Player playback, queue, download, signing and sync behaviour.
+
+Podcast Player 1.2.3 (phone/tablet trial; not publicly released)
+------------------------------------------------------------
+*   Playback reliability fixes selected from upstream:
+    *   Keep playing if another app removes a foreground notification (#6217).
+    *   Prevent cache mixing different-sized dynamically inserted advert streams (#6213).
+    *   Recover casting after a failed session and avoid spurious casting pauses (#6226, #6227).
+*   Repair the weekly upstream-review workflow for the renamed fork. Review PR only;
+    no automatic merges, APK releases, installations or Podcast Addict imports.
+*   Preserve Podcast Player identity, package, signature, server-based account sync,
+    Playlist, oldest-first playback, Dismiss/Restore, and Episode Chat disablement.
+
 8.24
 -----
 *   New Features
+    *   [Podcast Player fork] Hide caught-up podcasts from the Podcasts screen when the optional setting is enabled
     *   Show Google Play's in-app message when a subscription payment is declined, so you can fix the payment without leaving the app
         ([#6153](https://github.com/Automattic/pocket-casts-android/pull/6153))
 *   Bug Fixes
@@ -22,8 +44,14 @@
         ([#6212](https://github.com/Automattic/pocket-casts-android/pull/6212))
     *   Stop showing "Plus expires in X days" to subscribers whose subscription renews automatically
         ([#5329](https://github.com/Automattic/pocket-casts-android/pull/5329))
+    *   Fix choosing a Cast device sometimes doing nothing after a previous Cast session was lost
+        ([#6226](https://github.com/Automattic/pocket-casts-android/pull/6226))
     *   Let Up Next and other syncs run while episodes are downloading instead of waiting for the downloads to finish
         ([#6220](https://github.com/Automattic/pocket-casts-android/pull/6220))
+    *   Fix Cast playback pausing by itself a couple of seconds after you start casting
+        ([#6227](https://github.com/Automattic/pocket-casts-android/pull/6227))
+    *   Fix streamed episodes with dynamically inserted ads ending a little early, before the outro
+        ([#6213](https://github.com/Automattic/pocket-casts-android/pull/6213))
 
 
 8.23

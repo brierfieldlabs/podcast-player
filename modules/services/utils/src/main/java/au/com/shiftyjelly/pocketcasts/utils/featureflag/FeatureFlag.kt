@@ -26,6 +26,9 @@ object FeatureFlag {
     private val featureFlows = ConcurrentHashMap<Feature, MutableStateFlow<Boolean>>()
     private val immutableValues = ConcurrentHashMap<Feature, Boolean>()
 
+    // Fork policy: Episode Chat must stay unavailable, even when a remote flag or developer override enables it.
+    private val disabledInPodcastPlayer = setOf(Feature.EPISODE_CHAT, Feature.EPISODE_CHAT_FREE_BETA)
+
     fun initialize(
         providers: List<FeatureProvider>,
     ) {
@@ -41,6 +44,7 @@ object FeatureFlag {
         feature: Feature,
         immutable: Boolean = false,
     ): Boolean {
+        if (feature in disabledInPodcastPlayer) return false
         return if (immutable) {
             immutableValues.computeIfAbsent(feature) {
                 isEnabled(feature, immutable = false)
@@ -96,6 +100,7 @@ object FeatureFlag {
         feature: Feature,
         enabled: Boolean,
     ) {
+        if (feature in disabledInPodcastPlayer) return
         findProviderForFeature<ModifiableFeatureProvider>(feature)?.setEnabled(feature, enabled)
         updateFeatureFlowValues()
     }

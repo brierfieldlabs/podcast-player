@@ -248,6 +248,24 @@ class SettingsImpl @Inject constructor(
         toString = { it.clientId.toString() },
     )
 
+    override val sortPodcastsByUnfinishedCount = UserSetting.BoolPref(
+        sharedPrefKey = "sortPodcastsByUnfinishedCount",
+        defaultValue = false,
+        sharedPrefs = sharedPreferences,
+    )
+
+    override val reversePodcastsSort = UserSetting.BoolPref(
+        sharedPrefKey = "reversePodcastsSort",
+        defaultValue = false,
+        sharedPrefs = sharedPreferences,
+    )
+
+    override val hidePodcastsWithNoUnfinishedEpisodes = UserSetting.BoolPref(
+        sharedPrefKey = "hidePodcastsWithNoUnfinishedEpisodes",
+        defaultValue = false,
+        sharedPrefs = sharedPreferences,
+    )
+
     override val prioritizeSeekAccuracy = UserSetting.BoolPref(
         sharedPrefKey = "prioritizeSeekAccuracy",
         defaultValue = false,
@@ -1086,7 +1104,11 @@ class SettingsImpl @Inject constructor(
         defaultValue = when (Util.getAppPlatform(context)) {
             AppPlatform.Automotive -> true
 
-            AppPlatform.Phone,
+            // Podcast Player follows the next unfinished episode when a queue
+            // ends, without requiring listeners to build Up Next manually.
+            // Any existing user preference still overrides this default.
+            AppPlatform.Phone -> true
+
             AppPlatform.WearOs,
             AppPlatform.Tv,
             -> false

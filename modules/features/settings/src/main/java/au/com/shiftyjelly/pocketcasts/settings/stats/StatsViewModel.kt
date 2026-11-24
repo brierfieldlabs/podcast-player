@@ -8,6 +8,8 @@ import au.com.shiftyjelly.pocketcasts.compose.stats.HeatLevel
 import au.com.shiftyjelly.pocketcasts.models.to.StatsBundle
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.di.IoDispatcher
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictStatisticsStore
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
@@ -39,11 +41,13 @@ class StatsViewModel @Inject constructor(
     val application: Application,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val inAppReviewHelper: InAppReviewHelper,
+    private val podcastAddictStatisticsStore: PodcastAddictStatisticsStore,
 ) : ViewModel() {
 
     sealed class State {
         object Loading : State()
         object Error : State()
+        data class ImportedOnly(val statistics: PodcastAddictBackupInspector.SourceStatistics) : State()
         data class Loaded(
             val totalListened: Long,
             val skipping: Long,
@@ -57,6 +61,7 @@ class StatsViewModel @Inject constructor(
             val heatmapEnd: LocalDate = LocalDate.now(),
             val heatLevels: Map<LocalDate, HeatLevel> = emptyMap(),
             val showAppReviewDialog: Boolean = false,
+            val importedStatistics: PodcastAddictBackupInspector.SourceStatistics? = null,
         ) : State()
     }
 
@@ -66,9 +71,10 @@ class StatsViewModel @Inject constructor(
 
     fun loadStats() {
         viewModelScope.launch {
+            val importedStatistics = podcastAddictStatisticsStore.load()
             try {
                 val serverStats: StatsBundle? = if (syncManager.isLoggedIn()) {
-                    if (mutableState.value is State.Error) {
+                    if (mutableState.value is State.Error || mutableState.value is State.ImportedOnly) {
                         mutableState.value = State.Loading
                     }
                     statsManager.getServerStats()
@@ -109,13 +115,14 @@ class StatsViewModel @Inject constructor(
                     heatmapStart = heatmapStart,
                     heatmapEnd = heatmapEnd,
                     heatLevels = heatLevels,
+                    importedStatistics = importedStatistics,
                 )
                 withContext(ioDispatcher) {
                     serverStats?.startedAt?.let { showAppReviewDialogIfPossible(it) }
                 }
             } catch (e: Exception) {
                 Timber.e(e)
-                mutableState.value = State.Error
+                mutableState.value = importedStatistics?.let { State.ImportedOnly(it) } ?: State.Error
             }
         }
     }

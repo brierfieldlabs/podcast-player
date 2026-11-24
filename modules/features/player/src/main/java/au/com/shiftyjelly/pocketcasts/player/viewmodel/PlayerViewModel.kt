@@ -11,7 +11,6 @@ import androidx.lifecycle.viewModelScope
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.compose.PodcastColors
 import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
-import au.com.shiftyjelly.pocketcasts.models.entity.BlazeAd
 import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
 import au.com.shiftyjelly.pocketcasts.models.entity.UserEpisode
@@ -26,7 +25,6 @@ import au.com.shiftyjelly.pocketcasts.player.view.bookmark.BookmarkArguments
 import au.com.shiftyjelly.pocketcasts.player.view.dialog.ClearUpNextDialog
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.ArtworkConfiguration
-import au.com.shiftyjelly.pocketcasts.repositories.ads.BlazeAdsManager
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.di.IoDispatcher
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
@@ -45,8 +43,6 @@ import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
 import au.com.shiftyjelly.pocketcasts.utils.Util
 import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
-import com.automattic.eventhorizon.BannerAdImpressionEvent
-import com.automattic.eventhorizon.BannerAdTappedEvent
 import com.automattic.eventhorizon.EpisodeArchivedEvent
 import com.automattic.eventhorizon.EpisodeDetailPodcastNameTappedEvent
 import com.automattic.eventhorizon.EpisodeMarkedAsPlayedEvent
@@ -104,7 +100,6 @@ class PlayerViewModel @Inject constructor(
     private val settings: Settings,
     private val theme: Theme,
     private val eventHorizon: EventHorizon,
-    blazeAdsManager: BlazeAdsManager,
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel(),
@@ -344,11 +339,6 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val playerFlow = playbackManager.playerFlow
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val activeAd = blazeAdsManager
-        .findPlayerAd()
-        .stateIn(viewModelScope, started = SharingStarted.Eagerly, initialValue = null)
 
     fun setSleepEndOfChapters(chapters: Int = 1, shouldCallUpdateTimer: Boolean = true) {
         val newValue = chapters.coerceIn(1, 240)
@@ -806,24 +796,6 @@ class PlayerViewModel @Inject constructor(
             }
             event(source, contentType, settingTab.analyticsValue)
         }
-    }
-
-    fun trackAdImpression(ad: BlazeAd) {
-        eventHorizon.track(
-            BannerAdImpressionEvent(
-                id = ad.id,
-                location = ad.location.analyticsValue,
-            ),
-        )
-    }
-
-    fun trackAdTapped(ad: BlazeAd) {
-        eventHorizon.track(
-            BannerAdTappedEvent(
-                id = ad.id,
-                location = ad.location.analyticsValue,
-            ),
-        )
     }
 
     sealed interface NavigationState {

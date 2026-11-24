@@ -1,4 +1,4 @@
-name: PodcastGPT upstream review
+name: Podcast Player upstream review
 
 on:
   schedule:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   propose:
-    if: github.repository == 'brierfieldlabs/pocket-casts-android'
+    if: github.repository == 'brierfieldlabs/podcast-player'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -32,7 +32,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          base=add/podcastgpt-customisations
+          base=main
           update=automation/podcastgpt-upstream-update
 
           git config user.name 'github-actions[bot]'
@@ -42,7 +42,7 @@ jobs:
           git fetch --no-tags upstream refs/heads/main:refs/remotes/upstream/main
 
           if git merge-base --is-ancestor refs/remotes/upstream/main "refs/remotes/origin/${base}"; then
-            echo '## PodcastGPT is already up to date with upstream main.' >> "$GITHUB_STEP_SUMMARY"
+            echo '## Podcast Player is already up to date with upstream main.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -63,12 +63,12 @@ jobs:
             if ! git merge --no-ff --no-edit refs/remotes/upstream/main; then
               {
                 echo '## Upstream merge needs manual conflict resolution'
-                echo 'No PodcastGPT branch, PR or release was modified.'
+                echo 'No Podcast Player branch, PR or release was modified.'
                 echo ''
                 echo 'Conflicting files:'
                 git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/'
               } >> "$GITHUB_STEP_SUMMARY"
-              echo '::error::Upstream merge has conflicts; resolve these manually before updating PodcastGPT.'
+              echo '::error::Upstream merge has conflicts; resolve these manually before updating Podcast Player.'
               exit 1
             fi
 
@@ -83,21 +83,21 @@ jobs:
           pr=$(gh pr list --repo "$GH_REPO" --state open --base "$base" --head "$update" --json number --jq '.[0].number // empty')
           body="$RUNNER_TEMP/podcastgpt-upstream-review.md"
           cat > "$body" <<EOF
-          ## Pocket Casts upstream update for PodcastGPT
+          ## Pocket Casts upstream update for Podcast Player
 
-          Prepared from `Automattic/pocket-casts-android:main` for review against `$base`.
+          Prepared from Automattic/pocket-casts-android:main for review against $base.
 
-          - Upstream head: `$(git rev-parse --short refs/remotes/upstream/main)`
-          - PodcastGPT base: `$(git rev-parse --short "refs/remotes/origin/${base}")`
+          - Upstream head: $(git rev-parse --short refs/remotes/upstream/main)
+          - Podcast Player base: $(git rev-parse --short "refs/remotes/origin/${base}")
           - This is a reviewable **merge** of upstream, not a forced rebase of your working branch.
-          - Merge-conflict detection and `git diff --check` ran in the updater when the candidate branch was prepared.
-          - **Before merging:** review the upstream changes, run suitable Android builds/tests, and check that PodcastGPT customisations still work.
+          - Merge-conflict detection and git diff --check ran in the updater when the candidate branch was prepared.
+          - **Before merging:** review the upstream changes, run suitable Android builds/tests, and check that Podcast Player customisations still work.
           - **No automatic merge, APK publication or device update.**
           EOF
 
           if [ -z "$pr" ]; then
             url=$(gh pr create --repo "$GH_REPO" --base "$base" --head "$update" \
-              --title 'chore: review Pocket Casts upstream changes for PodcastGPT' \
+              --title 'chore: review Pocket Casts upstream changes for Podcast Player' \
               --body-file "$body")
           else
             gh pr edit "$pr" --repo "$GH_REPO" --body-file "$body"

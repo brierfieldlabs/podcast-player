@@ -489,7 +489,7 @@ private fun WhatsNewMessagePageResearchPreview() {
         poll = WhatsNewPoll(
             pollId = "poll",
             pollKey = "poll",
-            question = "How do you use Up Next?",
+            question = "How do you use your Playlist?",
             options = listOf(
                 WhatsNewPoll.Option(id = "a", pollOptionKey = "a", label = "As a queue for what's next"),
                 WhatsNewPoll.Option(id = "b", pollOptionKey = "b", label = "As a long-term playlist"),

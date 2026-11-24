@@ -1,0 +1,93 @@
+> **Frozen legacy trial:** v1.3.2 passed CI and corrected RSS matching on the phone. It is not the independent acceptance plan. No further Pocket Casts migration trial or live import is authorised. See [independent architecture](independent-architecture.md) for the next development direction.
+
+# Podcast Player phone acceptance (v1.3.2)
+
+**Status:** v1.2.4 phone accepted; v1.3.1 failed migration acceptance despite green CI; corrected v1.3.2 trial approved, awaiting fresh exact-head CI and device testing. This is a trial APK, not approval to release publicly,
+merge unverified changes, or migrate Podcast Addict history.
+
+The existing **Podcast Addict** installation remains the daily player. Do not
+uninstall or change it. Read-only preview of the fresh backup is allowed. Do not apply any subscription or episode changes to real account data until the owner explicitly approves the preview.
+
+## Before installing
+
+- Confirm the APK says **Podcast Player v1.3.2** and is provided by the
+  Brierfield Labs GitHub build of the approved development commit.
+- Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
+  installation, not a replacement that requires uninstalling or clearing data.
+  If it demands an uninstall, **stop** and report it. Existing local player data
+  must be retained.
+- Keep normal phone storage and network access available for the initial trial.
+  Do not assume downloads have completed merely because they are queued.
+
+## Acceptance checklist
+
+- [ ] Opens without a lengthy white screen; scrolls the dense podcast grid
+      smoothly. Fast scrolling shows the correct artwork and unplayed badges.
+- [ ] Shows **Playlist** consistently instead of Up Next, while existing
+      Pocket Casts account/web sync and queue ordering still work.
+- [ ] Existing subscriptions (especially 2.5 Admins) initially show oldest
+      episodes first unless an explicit manual sort was saved; switching to
+      newest-first and reopening the screen preserves that manual choice.
+- [ ] The Episode Chat entry, tooltip and sign-in/upgrade prompt never appear,
+      including when viewing existing episodes. Transcript/playback still work.
+- [ ] **Play oldest unfinished** starts immediately, resumes a partially played
+      episode, then proceeds through newer unfinished episodes, skipping
+      completed or dismissed ones. Existing queue takes precedence where expected.
+- [ ] **Add unfinished to Playlist** appends without clearing the current
+      queue, adding duplicates, or exceeding its capacity. Library-wide
+      fewest-unplayed-first ordering works.
+- [ ] Long-press an episode and **Dismiss** it; its unplayed count drops
+      without changing played status or playback position. Restore through
+      **Show Dismissed**.
+- [ ] Long-press a podcast tile: verify play, queue, download, mark played,
+      details, share and unsubscribe actions, including confirmations and
+      cancellation; verify folder rearrangement still behaves as intended.
+- [ ] Long-press a podcast tile and **Download all**: confirmation counts
+      only unfinished/partly played episodes, excluding dismissed/played,
+      already downloaded/queued/failed or stream-only episodes. New episodes
+      arriving after confirmation are not added silently.
+- [ ] Podcast-screen **Download all** behaves the same way. Check pending
+      downloads obey Wi-Fi, charging and storage preferences.
+- [ ] Per-podcast rolling download limit (0 to 10, disabled by default)
+      fills the oldest unfinished slots, refills after completion/dismissal,
+      and never deletes existing audio just to reduce the limit.
+- [ ] New episode title exclusions dismiss only matching new episodes;
+      already saved episodes are not changed.
+- [ ] Recurring chapter-title skipping works locally without unexpected
+      repeated seeks. Manual chapter selections and Chromecast remain intact.
+- [ ] Bass, Midrange and Treble EQ work where Android supports them; flat/off
+      leaves sound unchanged. Mono toggles correctly with wired and Bluetooth
+      output, without interfering with playback volume boost.
+- [ ] Verify per-podcast settings, notifications, downloads, podcast artwork,
+      playback background/lock-screen controls, and Pocket Casts sync after
+      restarting the app.
+- [ ] On a phone and Android tablet signed into the SAME Pocket Casts account,
+      check new subscriptions, played/unplayed state, episode resume positions,
+      Dismiss/Restore and Playlist order in both directions (allow for sync delay).
+      Do not expect downloaded audio or device-local EQ/download rules to sync.
+
+## Stop and report
+
+If the APK cannot update in place, shows a wrong package/version, loses
+subscriptions or playback positions, unexpectedly downloads played episodes,
+or behaves badly with background audio, **do not clear app data**. Record
+the symptom and the episode/podcast action that produced it.
+
+**Approval gate:** The owner accepted v1.2.4 on the phone on 24 November 2026
+and approved migration implementation. See [migration plan](podcast-addict-migration.md).
+This does not certify every checklist item or approve merging/releasing the player.
+Applying migration to real account data still needs **separate approval**.
+
+## v1.3.2 migration acceptance
+
+- Select a copy of the backup locally; confirm preview is read-only and check counts against the source. Verify missing/retained feeds and representative played, unplayed, partially played and favourite episodes, including duplicate enclosures and source timestamps.
+- Check that the existing player library, queue and playback are unchanged after dismissing preview. Do not clear application data.
+- Controlled migration only after explicit approval of the real preview: use Import backup to add missing subscriptions, then review the updated preview if shown. Pause both devices and apply reviewed episode changes offline on one device only. Check the recovery record and verify after reconnection/refresh, including more than one batch when applicable.
+- Historical statistics are a separate local snapshot, not part of account-wide sync. Save on each device only if desired and confirmed. Confirm re-saving does not add the totals twice.
+- Record unmatched feeds/episodes, source flag verification, history limitations and discrepancies before declaring acceptance.
+
+For v1.3.1, use one Import backup button rather than the v1.3.0 action menu. Check automatic online subscription acquisition and refreshed review, automatic continuation after offline/paused readiness, timeout without episode writes, and a combined completion report including historical statistics. If missing feeds remain, verify they are reported and skipped. The earlier v1.3.0 APK still uses the original workflow.
+
+**Failed v1.3.1 acceptance (24 November):** source 609 subscriptions, one exact match and zero proposed changes. The website-vs-RSS field was wrong. Do not repeat v1.3.1 import. In the next trial start online, check real RSS matching coverage (or diagnose remaining aliases/unknowns), verify representative episode states and dismissed exclusions before approving the overwrite. A completed build alone is not migration acceptance.
+
+For v1.3.2, start online and compare the preview against the private reference OPML comparison: 584 exact RSS matches out of 609 source subscriptions in a 660-address export, assuming the library has not changed. Those feeds contain 124125 source episode rows, not guaranteed target episode matches. Review the actual counts and representative playback states before approval. The remaining 25 source feeds lack exact matches; 24 are possible aliases only, one unresolved. Do not infer episode identity from titles alone or automatically remove destination-only subscriptions.

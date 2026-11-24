@@ -19,6 +19,20 @@ android {
         applicationId = project.property("applicationId").toString()
         targetSdk = project.property("targetSdkVersion") as Int
         multiDexEnabled = true
+
+        // Keep Podcast Player SemVer independent of upstream Pocket Casts releases.
+        val podcastPlayerVersion = providers.fileContents(
+            rootProject.layout.projectDirectory.file("podcast-player.version"),
+        ).asText.get().trim()
+        val parts = podcastPlayerVersion.split(".").map {
+            it.toIntOrNull() ?: error("Invalid Podcast Player version: $podcastPlayerVersion")
+        }
+        require(parts.size == 3 && parts[0] in 1..2099 && parts[1] in 0..999 && parts[2] in 0..999) {
+            "Podcast Player version must be MAJOR.MINOR.PATCH"
+        }
+        versionName = podcastPlayerVersion
+        // Derive Android's increasing versionCode from the same SemVer.
+        versionCode = parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
     }
 
     sourceSets {
@@ -39,7 +53,10 @@ android {
         }
 
         named("debugProd") {
-            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_3"
+            // Preserve the installed application identity while avoiding debug-only startup overhead.
+            isDebuggable = false
+            buildConfigField("boolean", "DEBUG", "false")
+            manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
         }
 
         maybeCreate("prototype").apply {

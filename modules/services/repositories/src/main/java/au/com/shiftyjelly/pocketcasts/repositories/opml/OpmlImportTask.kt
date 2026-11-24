@@ -15,13 +15,18 @@ import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictFeedUrls
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictMissingSubscriptions
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.notification.OnboardingNotificationType
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.servers.ServiceManager
 import au.com.shiftyjelly.pocketcasts.servers.di.Downloads
 import au.com.shiftyjelly.pocketcasts.servers.refresh.ImportOpmlResponse
 import au.com.shiftyjelly.pocketcasts.servers.refresh.RefreshServiceManager
@@ -33,11 +38,14 @@ import com.automattic.eventhorizon.OpmlImportStartedEvent
 import dagger.Lazy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
@@ -60,6 +68,7 @@ class OpmlImportTask @AssistedInject constructor(
     @Assisted parameters: WorkerParameters,
     private val podcastManager: PodcastManager,
     private val refreshServiceManager: RefreshServiceManager,
+    private val serviceManager: ServiceManager,
     @Downloads private val httpClient: Lazy<OkHttpClient>,
     private val notificationHelper: NotificationHelper,
     private val eventHorizon: EventHorizon,
@@ -69,6 +78,8 @@ class OpmlImportTask @AssistedInject constructor(
     companion object {
         private const val INPUT_URI = "INPUT_URI"
         private const val INPUT_URL = "INPUT_URL"
+        private const val INPUT_MIGRATION_FILE = "INPUT_MIGRATION_FILE"
+        private const val MIGRATION_FILE_PREFIX = "podcast-addict-missing-"
         private const val WORKER_TAG = "OpmlImportTask.Tag"
 
         fun run(uri: Uri, context: Context) {
@@ -81,9 +92,32 @@ class OpmlImportTask @AssistedInject constructor(
             run(data, context)
         }
 
+        /** Store a potentially large URL list in a private file, not WorkManager's 10 KB input. */
+        suspend fun runPodcastAddictMissingFeeds(feedUrls: List<String>, context: Context): Boolean {
+            val file = withContext(Dispatchers.IO) {
+                File.createTempFile(MIGRATION_FILE_PREFIX, ".opml", context.noBackupFilesDir).also { file ->
+                    try {
+                        file.outputStream().use { PodcastAddictMissingSubscriptions.writeOpml(feedUrls, it) }
+                    } catch (failure: Exception) {
+                        file.delete()
+                        throw failure
+                    }
+                }
+            }
+            val (id, operation) = withContext(Dispatchers.Main) {
+                run(workDataOf(INPUT_MIGRATION_FILE to file.name), context)
+            }
+            // Wait for this exact request, not an older completed OPML worker.
+            // Once enqueued, the worker owns the private file even if the UI closes.
+            withContext(Dispatchers.IO) { operation.result.get() }
+            val completed = WorkManager.getInstance(context).getWorkInfoByIdFlow(id)
+                .first { it?.state?.isFinished == true }
+            return completed?.state == WorkInfo.State.SUCCEEDED
+        }
+
         fun workInfos(context: Context) = WorkManager.getInstance(context).getWorkInfosByTagFlow(WORKER_TAG)
 
-        private fun run(data: Data, context: Context) {
+        private fun run(data: Data, context: Context): Pair<UUID, Operation> {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
@@ -94,21 +128,27 @@ class OpmlImportTask @AssistedInject constructor(
                 .addTag(WORKER_TAG)
                 .build()
 
-            WorkManager.getInstance(context).enqueue(task)
+            val operation = WorkManager.getInstance(context).enqueue(task)
 
             Toast.makeText(context, context.getString(LR.string.settings_import_opml_toast), Toast.LENGTH_LONG).show()
+            return task.id to operation
         }
     }
 
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     override suspend fun doWork(): Result {
+        val migrationFile = inputData.getString(INPUT_MIGRATION_FILE)
+            ?.takeIf { it.startsWith(MIGRATION_FILE_PREFIX) && it.endsWith(".opml") && File(it).name == it }
+            ?.let { File(applicationContext.noBackupFilesDir, it) }
         try {
             onboardingNotificationManager.updateUserFeatureInteraction(OnboardingNotificationType.Import)
             eventHorizon.track(OpmlImportStartedEvent)
             val url = inputData.getString(INPUT_URL)?.toHttpUrlOrNull()
             val uri = inputData.getString(INPUT_URI)?.toUri()
             val source = when {
+                migrationFile != null -> migrationFile.source()
+
                 url != null -> createUrlOpmlSource(url)
 
                 uri != null -> createUriOpmlSource(uri)
@@ -122,8 +162,15 @@ class OpmlImportTask @AssistedInject constructor(
                 return Result.failure()
             }
 
-            val urls = OpmlUrlReader().readUrls(source)
-            processUrls(urls)
+            val allUrls = OpmlUrlReader().readUrls(source)
+            val urls = if (migrationFile != null) {
+                val uuids = podcastManager.findSubscribedNoOrder().map { it.uuid }
+                val existing = checkNotNull(PodcastAddictFeedUrls.resolve(serviceManager, uuids)).values.toSet()
+                allUrls.filterNot { it in existing }
+            } else {
+                allUrls
+            }
+            if (urls.isNotEmpty()) processUrls(urls, skipExisting = migrationFile != null)
             trackProcessed(urls.size)
 
             CoroutineScope(Dispatchers.Main).launch {
@@ -134,9 +181,16 @@ class OpmlImportTask @AssistedInject constructor(
             CoroutineScope(Dispatchers.Main).launch {
                 Toast.makeText(applicationContext, applicationContext.getString(LR.string.settings_import_opml_import_failed_message), Toast.LENGTH_LONG).show()
             }
-            LogBuffer.e(LogBuffer.TAG_BACKGROUND_TASKS, t, "OPML import failed.")
+            if (migrationFile != null) {
+                // Migration feed URLs may be private; do not log exception details.
+                LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "Podcast Addict subscription import failed.")
+            } else {
+                LogBuffer.e(LogBuffer.TAG_BACKGROUND_TASKS, t, "OPML import failed.")
+            }
             trackFailure(reason = "unknown")
             return Result.failure()
+        } finally {
+            migrationFile?.delete()
         }
     }
 
@@ -166,7 +220,7 @@ class OpmlImportTask @AssistedInject constructor(
         )
     }
 
-    private suspend fun processUrls(urls: List<String>) {
+    private suspend fun processUrls(urls: List<String>, skipExisting: Boolean) {
         val podcastCount = urls.size
         val initialDatabaseCount = podcastManager.countPodcastsBlocking()
 
@@ -178,7 +232,7 @@ class OpmlImportTask @AssistedInject constructor(
             // call the server with the feed urls to get the podcast uuids
             .mapNotNull { callServer(urls = it) }
             // use the podcast uuids to subscribe to the podcasts
-            .subscribeToPodcasts(podcastManager)
+            .subscribeToPodcasts(podcastManager, skipExisting)
             // update the notification progress
             .onEach { updateNotification(initialDatabaseCount, podcastCount) }
             .collectPollUuids()
@@ -190,7 +244,7 @@ class OpmlImportTask @AssistedInject constructor(
                 // poll the server with the create uuids to get the podcast uuids
                 .mapNotNull { pollServer(pollUuids = it) }
                 // use the podcast uuids to subscribe to the podcasts
-                .subscribeToPodcasts(podcastManager)
+                .subscribeToPodcasts(podcastManager, skipExisting)
                 // update the notification progress
                 .onEach { updateNotification(initialDatabaseCount, podcastCount) }
                 .collectPollUuids()
@@ -257,10 +311,17 @@ class OpmlImportTask @AssistedInject constructor(
     }
 }
 
-private fun Flow<ImportOpmlResponse>.subscribeToPodcasts(podcastManager: PodcastManager): Flow<ImportOpmlResponse> {
+private fun Flow<ImportOpmlResponse>.subscribeToPodcasts(
+    podcastManager: PodcastManager,
+    skipExisting: Boolean,
+): Flow<ImportOpmlResponse> {
     return onEach {
         // add podcast uuid to subscribe queue
-        it.uuids.forEach { uuid -> podcastManager.subscribeToPodcast(uuid, sync = true, shouldAutoDownload = false) }
+        it.uuids.forEach { uuid ->
+            if (!skipExisting || podcastManager.findPodcastByUuid(uuid)?.isSubscribed != true) {
+                podcastManager.subscribeToPodcast(uuid, sync = true, shouldAutoDownload = false)
+            }
+        }
     }
 }
 

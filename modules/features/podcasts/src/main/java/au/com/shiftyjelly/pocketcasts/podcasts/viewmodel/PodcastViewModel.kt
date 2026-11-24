@@ -32,8 +32,11 @@ import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkEpisodeResol
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkPlaybackTimeResolver
 import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
+import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.confirmedOfflineDownloadUuids
+import au.com.shiftyjelly.pocketcasts.repositories.download.eligibleForOfflineDownload
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
@@ -82,7 +85,6 @@ import io.reactivex.schedulers.Schedulers
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
-import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +113,7 @@ class PodcastViewModel @Inject constructor(
     private val theme: Theme,
     private val castManager: CastManager,
     private val downloadQueue: DownloadQueue,
+    private val autoDownloadEpisodeProvider: AutoDownloadEpisodeProvider,
     private val userManager: UserManager,
     private val eventHorizon: EventHorizon,
     private val bookmarkManager: BookmarkManager,
@@ -451,10 +454,86 @@ class PodcastViewModel @Inject constructor(
         }
     }
 
-    fun downloadAll() {
-        val episodes = (uiState.value as? UiState.Loaded)?.episodes ?: return
-        val trimmedList = episodes.subList(0, min(Settings.MAX_DOWNLOAD, episodes.count())).map(PodcastEpisode::uuid)
-        downloadQueue.enqueueAll(trimmedList, DownloadType.UserTriggered(waitForWifi = false), SourceView.PODCAST_SCREEN)
+    // Dismiss uses the existing archived flag: it hides the episode without
+    // changing its played status or playback position, and syncs to web.
+    suspend fun setEpisodeDismissed(episode: PodcastEpisode, dismissed: Boolean) {
+        withContext(Dispatchers.IO) {
+            if (dismissed && !episode.isArchived) {
+                episodeManager.archiveBlocking(episode, playbackManager)
+                // An opt-in rolling download collection should recover its
+                // oldest unfinished slot after manual dismissal as well as
+                // after playback completion. This never deletes existing files.
+                applicationScope.launch(Dispatchers.IO) {
+                    val podcast = podcastManager.findPodcastByUuid(episode.podcastUuid) ?: return@launch
+                    val next = autoDownloadEpisodeProvider.getRollingEpisodes(podcast)
+                    if (next.isNotEmpty()) {
+                        downloadQueue.enqueueAll(
+                            next,
+                            DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                            SourceView.AUTO_DOWNLOAD,
+                        )
+                    }
+                }
+            } else if (!dismissed && episode.isArchived) {
+                episodeManager.unarchiveBlocking(episode)
+                episode.isArchived = false
+            }
+        }
+    }
+
+    // Starts with the selected unfinished episode, then plays newer visible
+    // episodes of this podcast. Completed or dismissed episodes are excluded.
+    fun playFromEpisodeOldestFirst(selected: PodcastEpisode): Boolean {
+        val chronological = (uiState.value as? UiState.Loaded)?.episodes
+            ?.filter { !it.isFinished && !it.isArchived }
+            ?.sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+            .orEmpty()
+        val start = chronological.indexOfFirst { it.uuid == selected.uuid }
+        if (start == -1) return false
+        playbackManager.playEpisodes(
+            chronological.drop(start).take(settings.getMaxUpNextEpisodes()),
+            sourceView = SourceView.PODCAST_SCREEN,
+            replaceQueue = true,
+        )
+        return true
+    }
+
+    // Play the unfinished episodes visible in this podcast regardless of sort
+    // order. This explicit action replaces the listening queue.
+    fun playVisibleUnfinishedOldestFirst(): Boolean {
+        val episodes = (uiState.value as? UiState.Loaded)?.episodes
+            ?.filter { !it.isFinished && !it.isArchived }
+            ?.sortedWith(compareBy<PodcastEpisode> { it.publishedDate }.thenBy { it.uuid })
+            ?.take(settings.getMaxUpNextEpisodes())
+            .orEmpty()
+        if (episodes.isEmpty()) return false
+        playbackManager.playEpisodes(episodes, sourceView = SourceView.PODCAST_SCREEN, replaceQueue = true)
+        return true
+    }
+
+    /** The complete unfinished offline candidate list, not the current screen's
+     * limited, grouped, searched or optionally dismissed episode collection.
+     */
+    suspend fun eligibleOfflineEpisodes(): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        val currentPodcast = this@PodcastViewModel.podcast.value ?: return@withContext emptyList()
+        episodeManager.findEpisodesByPodcastOrderedByPublishDate(currentPodcast)
+            .eligibleForOfflineDownload()
+    }
+
+    fun downloadAll(episodes: List<PodcastEpisode>) {
+        val first = episodes.firstOrNull() ?: return
+        val confirmedUuids = episodes.mapTo(mutableSetOf()) { it.uuid }
+        launch(Dispatchers.IO) {
+            val podcast = podcastManager.findPodcastByUuid(first.podcastUuid) ?: return@launch
+            val stillEligible = episodeManager.confirmedOfflineDownloadUuids(podcast, confirmedUuids)
+            if (stillEligible.isNotEmpty()) {
+                downloadQueue.enqueueAll(
+                    stillEligible,
+                    DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                    SourceView.PODCAST_SCREEN,
+                )
+            }
+        }
     }
 
     suspend fun getFolder(): Folder? {
@@ -916,7 +995,9 @@ private fun Flowable<CombinedData>.buildUiState(
         ) { (searchList, episodeList), (bookmarks, _) ->
             val episodeCount = episodeList.size
             val archivedCount = episodeList.count { it.isArchived }
-            val showArchivedWithSearch = episodeSearchResults.searchUuids != null || showArchived
+            // Search must not resurrect dismissed/archived episodes unless
+            // the listener explicitly chose Show archived.
+            val showArchivedWithSearch = showArchived
             val filteredList =
                 if (showArchivedWithSearch) searchList else searchList.filter { !it.isArchived }
             val episodeLimit = podcast.autoArchiveEpisodeLimit?.value
@@ -924,7 +1005,7 @@ private fun Flowable<CombinedData>.buildUiState(
             // if the episode limit is on, the following texting is shown the episode list 'Limited to x most recent episodes'
             if (episodeLimit != null && filteredList.isNotEmpty() && podcast.overrideGlobalArchive) {
                 val mutableEpisodeList: MutableList<Any> = episodeList.toMutableList()
-                if (podcast.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC) {
+                if (podcast.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC) {
                     if (episodeLimit <= episodeList.size) {
                         mutableEpisodeList.add(episodeLimit, EpisodeLimitPlaceholder())
                     }

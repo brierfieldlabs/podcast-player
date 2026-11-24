@@ -81,7 +81,7 @@ class FolderViewHolder(
         val episodeCount = podcasts.sumOf { podcast -> podcastUuidToBadge[podcast.uuid] ?: 0 }
         return when (badgeType) {
             BadgeType.OFF -> 0
-            BadgeType.ALL_UNFINISHED -> min(99, episodeCount)
+            BadgeType.ALL_UNFINISHED -> episodeCount
             BadgeType.LATEST_EPISODE -> min(1, episodeCount)
         }
     }

@@ -149,7 +149,7 @@ sealed class PodcastGrouping(
      */
     open fun formGroups(episodes: List<PodcastEpisode>, podcast: Podcast, resources: Resources): List<List<PodcastEpisode>> {
         val reversedSort = podcast.grouping is Season &&
-            podcast.episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC
+            podcast.effectiveEpisodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC
         val sortFunction = this.sortFunction ?: return listOf(episodes)
         val groups = mutableListOf<MutableList<PodcastEpisode>>()
 

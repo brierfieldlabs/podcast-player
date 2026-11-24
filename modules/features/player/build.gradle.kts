@@ -79,7 +79,6 @@ dependencies {
     implementation(libs.rx2.relay)
     implementation(libs.timber)
 
-    implementation(projects.modules.features.ads)
     implementation(projects.modules.features.chat)
     implementation(projects.modules.features.reimagine)
     implementation(projects.modules.services.images)

@@ -218,7 +218,7 @@ enum class Feature(
     ),
     UP_NEXT_SYNC_PROTOBUF(
         key = "up_next_sync_protobuf",
-        title = "Up Next sync with Protocol Buffers",
+        title = "Playlist sync with Protocol Buffers",
         defaultValue = isDebugOrPrototypeBuild,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,
@@ -317,7 +317,7 @@ enum class Feature(
     ),
     UP_NEXT_SORT(
         key = "up_next_sort",
-        title = "Up Next sort by duration",
+        title = "Playlist sort by duration",
         defaultValue = isDebugOrPrototypeBuild,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,
@@ -390,6 +390,15 @@ enum class Feature(
     RETRY_WITH_PLATFORM_USER_AGENT(
         key = "retry_with_platform_user_agent",
         title = "Retry failed media requests with the platform User-Agent",
+        defaultValue = true,
+        tier = FeatureTier.Free,
+        hasFirebaseRemoteFlag = true,
+        hasDevToggle = true,
+        addedOn = LocalDate.parse("2026-10-21"),
+    ),
+    VALIDATE_CACHED_MEDIA_LENGTH(
+        key = "validate_cached_media_length",
+        title = "Stop the playback cache from mixing media builds of different lengths",
         defaultValue = true,
         tier = FeatureTier.Free,
         hasFirebaseRemoteFlag = true,

@@ -76,7 +76,6 @@ fun DeveloperPage(
     onResetNotificationsPrompt: () -> Unit,
     onShowAppReviewPrompt: () -> Unit,
     onClearAppReviewSettings: () -> Unit,
-    onResetEpisodeChatSurvey: () -> Unit,
     onTriggerPlaybackError: () -> Unit,
     onTriggerConnectionError: () -> Unit,
     modifier: Modifier = Modifier,
@@ -154,9 +153,6 @@ fun DeveloperPage(
         }
         item {
             ClearAppReviewSettings(onClick = onClearAppReviewSettings)
-        }
-        item {
-            ResetEpisodeChatSurvey(onClick = onResetEpisodeChatSurvey)
         }
 
         item {
@@ -328,8 +324,8 @@ private fun ResetUpNextSortTooltip(
     modifier: Modifier = Modifier,
 ) {
     SettingRow(
-        primaryText = "Show Up Next sort tooltip",
-        secondaryText = "Show the \"Sort by Duration\" tooltip on the Up Next tab again",
+        primaryText = "Show Playlist sort tooltip",
+        secondaryText = "Show the \"Sort by Duration\" tooltip on the Playlist tab again",
         icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.PlaylistPlay),
         modifier = modifier.clickable { onClick() },
     )
@@ -435,19 +431,6 @@ private fun ClearAppReviewSettings(
         primaryText = "Clear app review settings",
         secondaryText = "Reset all app review settings to help test",
         icon = rememberVectorPainter(Icons.Outlined.Delete),
-        modifier = modifier.clickable { onClick() },
-    )
-}
-
-@Composable
-private fun ResetEpisodeChatSurvey(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    SettingRow(
-        primaryText = "Reset episode chat survey",
-        secondaryText = "Show the survey again after the next answered episode chat",
-        icon = rememberVectorPainter(Icons.Outlined.RestartAlt),
         modifier = modifier.clickable { onClick() },
     )
 }
@@ -604,7 +587,6 @@ private fun DeveloperPagePreview() {
         onResetNotificationsPrompt = {},
         onShowAppReviewPrompt = {},
         onClearAppReviewSettings = {},
-        onResetEpisodeChatSurvey = {},
         onTriggerPlaybackError = {},
         onTriggerConnectionError = {},
     )

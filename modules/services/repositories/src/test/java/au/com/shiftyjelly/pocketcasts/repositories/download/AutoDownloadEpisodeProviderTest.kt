@@ -63,6 +63,7 @@ class AutoDownloadEpisodeProviderTest {
         playlistManager = playlistManager,
         upNextQueue = upNextQueue,
         settings = settings,
+        podcastPlayerPreferences = mock<PodcastPlayerPodcastPreferences>(),
     )
 
     @Test

@@ -53,7 +53,6 @@ class DeveloperFragment : BaseFragment() {
                 onResetNotificationsPrompt = viewModel::resetNotificationsPrompt,
                 onShowAppReviewPrompt = viewModel::showAppReviewPrompt,
                 onClearAppReviewSettings = viewModel::clearAppReviewSettings,
-                onResetEpisodeChatSurvey = viewModel::resetEpisodeChatSurvey,
                 onTriggerPlaybackError = viewModel::triggerPlaybackError,
                 onTriggerConnectionError = viewModel::triggerConnectionError,
             )

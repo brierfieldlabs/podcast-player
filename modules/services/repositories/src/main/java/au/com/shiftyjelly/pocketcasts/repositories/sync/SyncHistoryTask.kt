@@ -25,6 +25,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import retrofit2.HttpException
 
 private const val TAG = "SyncHistoryTask"
+private const val HISTORY_BATCH_SIZE = 1000
 
 @HiltWorker
 class SyncHistoryTask @AssistedInject constructor(
@@ -107,10 +108,13 @@ class SyncHistoryTask @AssistedInject constructor(
                     episodeManager.clearEpisodePlaybackInteractionDatesBeforeBlocking(lastCleared)
                 }
 
-                episodeManager.markPlaybackHistorySyncedBlocking()
+                episodeManager.markPlaybackHistorySynced(episodes)
                 if (wasHistoryCleared) {
                     settings.setClearHistoryTime(0L)
                 }
+                // The DAO returns at most 1,000 pending records. Do not mark
+                // unsent rows synced; let WorkManager run the next batch.
+                if (episodes.size >= HISTORY_BATCH_SIZE) return Result.retry()
             }
 
             LogBuffer.i(TAG, "Sync history completed successfully")

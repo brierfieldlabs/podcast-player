@@ -46,7 +46,10 @@ import au.com.shiftyjelly.pocketcasts.repositories.R
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.chromecast.CastManager
 import au.com.shiftyjelly.pocketcasts.repositories.di.NotificationPermissionChecker
+import au.com.shiftyjelly.pocketcasts.repositories.download.AutoDownloadEpisodeProvider
 import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadQueue
+import au.com.shiftyjelly.pocketcasts.repositories.download.DownloadType
+import au.com.shiftyjelly.pocketcasts.repositories.download.PodcastPlayerPodcastPreferences
 import au.com.shiftyjelly.pocketcasts.repositories.fingerprint.GeneratedChapterSeeker
 import au.com.shiftyjelly.pocketcasts.repositories.history.upnext.UpNextHistoryManager
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
@@ -120,7 +123,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -128,6 +130,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -160,6 +163,8 @@ open class PlaybackManager @Inject constructor(
     @ApplicationContext private val application: Context,
     private val playlistManager: PlaylistManager,
     private val downloadQueue: DownloadQueue,
+    private val autoDownloadEpisodeProvider: AutoDownloadEpisodeProvider,
+    private val podcastPlayerPreferences: PodcastPlayerPodcastPreferences,
     val upNextQueue: UpNextQueue,
     private val notificationHelper: NotificationHelper,
     private val userEpisodeManager: UserEpisodeManager,
@@ -311,6 +316,7 @@ open class PlaybackManager @Inject constructor(
         val build: (PlaybackContentType) -> Trackable,
     )
     private val pendingContentTypeEvents = mutableListOf<PendingContentTypeEvent>()
+    private val castSessionEvents = Channel<suspend () -> Unit>(Channel.UNLIMITED)
 
     var player: Player?
         get() = _playerFlow.value
@@ -324,6 +330,12 @@ open class PlaybackManager @Inject constructor(
         upNextQueue.setupBlocking()
         mediaSessionManager.startObserving()
         val playbackManagerNetworkWatcher = playbackManagerNetworkWatcherFactory.create(::onSwitchedToMeteredConnection)
+
+        launch {
+            for (castSessionEvent in castSessionEvents) {
+                castSessionEvent()
+            }
+        }
 
         launch {
             updatePausedPlaybackState()
@@ -365,6 +377,7 @@ open class PlaybackManager @Inject constructor(
                             }
                         }
                     }
+                    castSessionEvents.trySend { releaseCastPlayerFromLostSession() }
                 }
             })
             playbackManagerNetworkWatcher.observeConnection()
@@ -627,6 +640,11 @@ open class PlaybackManager @Inject constructor(
 
     fun isPlaybackRemote(): Boolean {
         return player?.isRemote ?: false
+    }
+
+    /** Refresh device-local EQ gains for Android output only; cast stays unchanged. */
+    fun refreshPodcastPlayerEqualizer() {
+        (player as? SimplePlayer)?.refreshPodcastPlayerEqualizer()
     }
 
     fun isAudioEffectsAvailable(): Boolean {
@@ -977,7 +995,11 @@ open class PlaybackManager @Inject constructor(
             }
     }
 
-    fun playEpisodes(episodes: List<BaseEpisode>, sourceView: SourceView = SourceView.UNKNOWN) {
+    fun playEpisodes(
+        episodes: List<BaseEpisode>,
+        sourceView: SourceView = SourceView.UNKNOWN,
+        replaceQueue: Boolean = false,
+    ) {
         if (episodes.isEmpty()) {
             return
         }
@@ -985,8 +1007,20 @@ open class PlaybackManager @Inject constructor(
         launch {
             val topEpisode = episodes.first()
             playNowSync(episode = topEpisode, sourceView = sourceView)
-            if (episodes.size > 1) {
-                upNextQueue.clearAndPlayAll(episodes.slice(1 until min(episodes.size, settings.getMaxUpNextEpisodes())))
+            if (episodes.size > 1 || replaceQueue) {
+                // Explicit single-episode podcast playback must not resume an
+                // unrelated old Up Next list after the selected episode.
+                upNextQueue.clearAndPlayAll(
+                    episodes.drop(1).take((settings.getMaxUpNextEpisodes() - 1).coerceAtLeast(0)),
+                )
+            }
+            if (replaceQueue && topEpisode is PodcastEpisode) {
+                // Inserting into a nonempty Up Next clears both remembered
+                // autoplay sources. Restore the selected podcast only AFTER
+                // all queue changes, or continuous playback silently stops.
+                val podcastSource = AutoPlaySource.fromId(topEpisode.podcastUuid)
+                settings.trackingAutoPlaySource.set(podcastSource, updateModifiedAt = false)
+                settings.lastAutoPlaySource.set(podcastSource, updateModifiedAt = false)
             }
         }
     }
@@ -1479,26 +1513,30 @@ open class PlaybackManager @Inject constructor(
     }
 
     fun castReconnected() {
-        launch(Dispatchers.Main) {
-            if (player != null) {
-                player?.stop()
-                player = null
+        castSessionEvents.trySend {
+            withContext(Dispatchers.Main) {
+                if (player != null) {
+                    player?.stop()
+                    player = null
+                }
+
+                player = playerManager.createCastPlayer(this@PlaybackManager::onPlayerEvent)
+                mediaSessionManager.installCastPlayer()
+                (player as? CastPlayer)?.updateFromRemoteIfRequired()
+                LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Cast reconnected. Creating media player of type CastPlayer")
+
+                setupUpdateTimer()
             }
-
-            player = playerManager.createCastPlayer(this@PlaybackManager::onPlayerEvent)
-            mediaSessionManager.installCastPlayer()
-            (player as? CastPlayer)?.updateFromRemoteIfRequired()
-            Timber.i("Cast reconnected. Creating media player of type CastPlayer")
-
-            setupUpdateTimer()
         }
     }
 
     fun castConnected() {
         upNextQueue.currentEpisode ?: return
         cancelPrefetchNextEpisode()
-        launch {
-            if (isPlayerSwitchRequired()) {
+        castSessionEvents.trySend {
+            val switchRequired = isPlayerSwitchRequired()
+            LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Cast connected with ${player?.name} player, switch required: $switchRequired")
+            if (switchRequired) {
                 loadCurrentEpisode(true, sourceView = SourceView.CHROMECAST)
             }
         }
@@ -1506,7 +1544,7 @@ open class PlaybackManager @Inject constructor(
 
     fun castDisconnected() {
         upNextQueue.currentEpisode ?: return
-        launch {
+        castSessionEvents.trySend {
             updateCurrentPositionInDatabase()
 
             stop()
@@ -1803,6 +1841,20 @@ open class PlaybackManager @Inject constructor(
             // auto archive after playing
             if (episode is PodcastEpisode) {
                 episodeManager.archivePlayedEpisode(episode, this, podcastManager, sync = true)
+                // Replenish only enabled offline collections. The queued automatic
+                // downloads still obey the user's Wi-Fi, power and storage rules.
+                applicationScope.launch(Dispatchers.IO) {
+                    podcastManager.findPodcastByUuid(episode.podcastUuid)?.let { podcast ->
+                        val rolling = autoDownloadEpisodeProvider.getRollingEpisodes(podcast)
+                        if (rolling.isNotEmpty()) {
+                            downloadQueue.enqueueAll(
+                                rolling,
+                                DownloadType.Automatic(bypassAutoDownloadStatus = true),
+                                SourceView.AUTO_DOWNLOAD,
+                            )
+                        }
+                    }
+                }
             } else if (episode is UserEpisode) {
                 userEpisodeManager.deletePlayedEpisodeIfReq(episode, this)
             }
@@ -2012,24 +2064,51 @@ open class PlaybackManager @Inject constructor(
     private var observeChaptersJob: Job? = null
 
     private fun onEpisodeChanged(episodeUuid: String) {
+        // An observer from the previous episode must never advance this one.
+        observeChaptersSkipping?.cancel()
+        observeChaptersSkipping = null
         observeChaptersJob?.cancel()
         observeChaptersJob = chapterManager.observerChaptersForEpisode(episodeUuid)
-            .onEach { onChaptersAvailable(it) }
+            .onEach { onChaptersAvailable(episodeUuid, it) }
             .launchIn(this)
     }
 
     @Volatile
     private var observeChaptersSkipping: Job? = null
 
-    private fun onChaptersAvailable(chapters: Chapters) {
-        playbackStateRelay.blockingFirst().let { playbackState ->
-            playbackStateRelay.accept(playbackState.copy(chapters = chapters))
+    private fun onChaptersAvailable(episodeUuid: String, chapters: Chapters) {
+        // Chapter updates can finish after a different episode starts.
+        if (getCurrentEpisode()?.uuid != episodeUuid) return
+        val episode = getCurrentEpisode() as? PodcastEpisode
+        val selectedChapters = if (episode == null || player?.isRemote == true) {
+            // Never apply device-local rules to Chromecast. Preserve existing
+            // per-episode manual chapter selections on either player.
+            chapters
+        } else {
+            Chapters(
+                chapters.map { chapter ->
+                    if (podcastPlayerPreferences.matchesSkippedChapterTitle(episode.podcastUuid, chapter.title)) {
+                        chapter.copy(selected = false)
+                    } else {
+                        chapter
+                    }
+                },
+            )
         }
+        val playbackState = playbackStateRelay.blockingFirst()
+        if (playbackState.episodeUuid != episodeUuid) return
+        playbackStateRelay.accept(playbackState.copy(chapters = selectedChapters))
         observeChaptersSkipping?.cancel()
         observeChaptersSkipping = playbackStateRelay.asFlow()
-            .map { it.positionMs.milliseconds }
-            .onEach { position ->
-                val currentChapter = chapters.firstOrNull { position in it }
+            .map { state ->
+                val position = state.positionMs.milliseconds
+                selectedChapters.firstOrNull { position in it }
+            }
+            // Only one seek for each entry into a skipped chapter. Repeated
+            // position ticks while a seek is pending must not skip twice.
+            .distinctUntilChanged()
+            .onEach { currentChapter ->
+                if (getCurrentEpisode()?.uuid != episodeUuid) return@onEach
                 if (currentChapter?.selected == false) {
                     skipToNextSelectedOrLastChapter()
                 }
@@ -2126,12 +2205,25 @@ open class PlaybackManager @Inject constructor(
             forcePlayerSwitch = false
             return true
         }
-        // using Chrome Cast make sure the player is connected
-        return if (!castManager.isConnected()) {
-            player is CastPlayer
-        } else {
-            player is SimplePlayer
-        } // otherwise use the ExoPlayer
+        val castPlayer = player as? CastPlayer
+        return castPlayerSwitchRequired(
+            isCastConnected = castManager.isConnected(),
+            isCastPlayer = castPlayer != null,
+            isBoundToCurrentSession = castPlayer?.isBoundToCurrentSession() == true,
+        )
+    }
+
+    private suspend fun releaseCastPlayerFromLostSession() {
+        withContext(Dispatchers.Main) {
+            val castPlayer = player as? CastPlayer ?: return@withContext
+            if (!castPlayer.isBoundToCurrentSession()) {
+                LogBuffer.i(LogBuffer.TAG_PLAYBACK, "Releasing Cast player from a lost Cast session")
+                cancelUpdateTimer()
+                cancelBufferUpdateTimer()
+                castPlayer.stop()
+                player = null
+            }
+        }
     }
 
     /**
@@ -2196,6 +2288,7 @@ open class PlaybackManager @Inject constructor(
         cancelUpdateTimer()
         cancelBufferUpdateTimer()
 
+        releaseCastPlayerFromLostSession()
         val currentPlayer = this.player
         val sameEpisode = currentPlayer != null && episode.uuid == currentPlayer.episodeUuid
 
@@ -3146,6 +3239,18 @@ internal enum class CastSessionFailureAction {
     Ignore,
     ShowToast,
     ShowToastAndError,
+}
+
+internal fun castPlayerSwitchRequired(
+    isCastConnected: Boolean,
+    isCastPlayer: Boolean,
+    isBoundToCurrentSession: Boolean,
+): Boolean {
+    return if (isCastConnected) {
+        !isCastPlayer || !isBoundToCurrentSession
+    } else {
+        isCastPlayer
+    }
 }
 
 internal fun castSessionFailureAction(

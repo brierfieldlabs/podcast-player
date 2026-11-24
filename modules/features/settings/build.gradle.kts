@@ -10,6 +10,12 @@ plugins {
 
 android {
     namespace = "au.com.shiftyjelly.pocketcasts.settings"
+    defaultConfig {
+        val podcastPlayerVersion = providers.fileContents(
+            rootProject.layout.projectDirectory.file("podcast-player.version"),
+        ).asText.get().trim()
+        buildConfigField("String", "PODCAST_PLAYER_VERSION", "\"$podcastPlayerVersion\"")
+    }
     buildFeatures {
         buildConfig = true
         viewBinding = true

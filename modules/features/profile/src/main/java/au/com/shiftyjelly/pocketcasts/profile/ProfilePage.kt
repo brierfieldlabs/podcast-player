@@ -197,23 +197,9 @@ internal fun ProfilePage(
                     VerticalSpacer()
                 }
                 item {
-                    ProfileUpgradeSection(
-                        isVisible = state.isUpgradeBannerVisible,
-                        contentPadding = PaddingValues(
-                            horizontal = 64.dp,
-                            vertical = verticalSpacing,
-                        ),
-                        onClick = onUpgradeProfileClick,
-                        onCloseClick = onCloseUpgradeProfileClick,
-                        modifier = Modifier
-                            .background(MaterialTheme.colors.background)
-                            .fillMaxWidth(),
-                    )
-                }
-                item {
                     MiniPlayerPadding(
                         padding = state.miniPlayerPadding,
-                        isUpgradeBannerVisible = state.isUpgradeBannerVisible,
+                        isUpgradeBannerVisible = false,
                     )
                 }
             }

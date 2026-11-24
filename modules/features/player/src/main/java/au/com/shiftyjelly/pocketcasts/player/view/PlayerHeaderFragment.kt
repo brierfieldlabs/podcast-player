@@ -79,7 +79,6 @@ import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import au.com.shiftyjelly.pocketcasts.ads.AdReportFragment
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.chat.ChatFragment
 import au.com.shiftyjelly.pocketcasts.chat.EpisodeChatAccess
@@ -87,8 +86,6 @@ import au.com.shiftyjelly.pocketcasts.compose.AppTheme
 import au.com.shiftyjelly.pocketcasts.compose.LocalPodcastColors
 import au.com.shiftyjelly.pocketcasts.compose.PlayerColors
 import au.com.shiftyjelly.pocketcasts.compose.PodcastColors
-import au.com.shiftyjelly.pocketcasts.compose.ad.AdBanner
-import au.com.shiftyjelly.pocketcasts.compose.ad.rememberAdColors
 import au.com.shiftyjelly.pocketcasts.compose.adaptive.isAtLeastMediumHeight
 import au.com.shiftyjelly.pocketcasts.compose.adaptive.isAtLeastMediumWidth
 import au.com.shiftyjelly.pocketcasts.compose.components.AnimatedNonNullVisibility
@@ -96,18 +93,15 @@ import au.com.shiftyjelly.pocketcasts.compose.components.PlaybackErrorInfoBar
 import au.com.shiftyjelly.pocketcasts.compose.components.rememberNestedScrollLockableInteropConnection
 import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
 import au.com.shiftyjelly.pocketcasts.compose.theme
-import au.com.shiftyjelly.pocketcasts.models.entity.BlazeAd
 import au.com.shiftyjelly.pocketcasts.player.R
 import au.com.shiftyjelly.pocketcasts.player.view.bookmark.BookmarkActivity
 import au.com.shiftyjelly.pocketcasts.player.view.bookmark.BookmarkActivityContract
-import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.ArtworkImage
 import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.ArtworkImageState
 import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.ArtworkOrVideo
 import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.ArtworkOrVideoState
 import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.EpisodeTitles
 import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.PlayerControls
 import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.PlayerSeekBar
-import au.com.shiftyjelly.pocketcasts.player.view.nowplaying.VideoBox
 import au.com.shiftyjelly.pocketcasts.player.view.shelf.PlayerShelf
 import au.com.shiftyjelly.pocketcasts.player.view.video.VideoActivity
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.PlayerViewModel
@@ -129,7 +123,6 @@ import au.com.shiftyjelly.pocketcasts.transcripts.ui.TranscriptShareButton
 import au.com.shiftyjelly.pocketcasts.ui.extensions.inPortrait
 import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
-import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog
 import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog.ButtonType.Danger
 import au.com.shiftyjelly.pocketcasts.views.extensions.applyLightToastStyle
@@ -232,7 +225,6 @@ class PlayerHeaderFragment :
         val headerData by remember { playerHeaderFlow() }.collectAsStateWithLifecycle(PlayerViewModel.PlayerHeader())
         // Not lifecycle-gated: carries the video Player/surface and re-emitting it on resume can freeze the frame.
         val artworkOrVideoState by remember { playerVisualsStateFlow() }.collectAsState(ArtworkOrVideoState.NoContent)
-        val activeAd by viewModel.activeAd.collectAsStateWithLifecycle()
         val playbackNotice by viewModel.playbackNotice.collectAsStateWithLifecycle()
 
         val isPlayerOpen by remember { isPlayerOpenFlow() }.collectAsStateWithLifecycle(false)
@@ -268,7 +260,6 @@ class PlayerHeaderFragment :
                             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     )
                     PlayerContent(
-                        ad = activeAd,
                         artworkOrVideoState = artworkOrVideoState,
                         headerData = headerData,
                         playerColors = playerColors,
@@ -290,8 +281,6 @@ class PlayerHeaderFragment :
             playerEpisodeUuid = headerData.episodeUuid,
             transcriptEpisodeUuid = transcriptUiState.transcriptEpisodeUuid,
         )
-
-        AdImpressionEffect(activeAd, isPlayerOpen)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -611,22 +600,6 @@ class PlayerHeaderFragment :
         }
     }
 
-    private fun openAd(ad: BlazeAd) {
-        viewModel.trackAdTapped(ad)
-        runCatching {
-            val intent = Intent(Intent.ACTION_VIEW, ad.url.toUri())
-            startActivity(intent)
-        }.onFailure { LogBuffer.e("Ads", it, "Failed to open an ad: ${ad.id}") }
-    }
-
-    private fun openAdReportSheet(ad: BlazeAd, podcastColors: PodcastColors) {
-        if (parentFragmentManager.findFragmentByTag("ad_report") == null) {
-            AdReportFragment
-                .newInstance(ad, podcastColors)
-                .show(parentFragmentManager, "ad_report")
-        }
-    }
-
     private fun playerHeaderFlow(): Flow<PlayerViewModel.PlayerHeader> {
         return viewModel.listDataRx.map { it.podcastHeader }.asFlow()
     }
@@ -697,7 +670,6 @@ class PlayerHeaderFragment :
 
     @Composable
     private fun PlayerContent(
-        ad: BlazeAd?,
         artworkOrVideoState: ArtworkOrVideoState,
         headerData: PlayerViewModel.PlayerHeader,
         playerColors: PlayerColors,
@@ -710,7 +682,6 @@ class PlayerHeaderFragment :
         Column(modifier = modifier) {
             if (isPortraitPlayer) {
                 VerticalPlayerContent(
-                    ad = ad,
                     artworkOrVideoState = artworkOrVideoState,
                     headerData = headerData,
                     playerColors = playerColors,
@@ -726,7 +697,6 @@ class PlayerHeaderFragment :
                 )
             } else {
                 HorizontalPlayerContent(
-                    ad = ad,
                     artworkOrVideoState = artworkOrVideoState,
                     headerData = headerData,
                     playerColors = playerColors,
@@ -784,7 +754,6 @@ class PlayerHeaderFragment :
 
     @Composable
     private fun VerticalPlayerContent(
-        ad: BlazeAd?,
         artworkOrVideoState: ArtworkOrVideoState,
         headerData: PlayerViewModel.PlayerHeader,
         playerColors: PlayerColors,
@@ -804,11 +773,9 @@ class PlayerHeaderFragment :
                     },
                 ),
         ) {
-            AdAndArtwork(
-                ad = ad,
+            ArtworkOnly(
                 artworkOrVideoState = artworkOrVideoState,
                 isTranscriptOpen = transitionData.isTranscriptOpen,
-                playerColors = playerColors,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -874,7 +841,6 @@ class PlayerHeaderFragment :
 
     @Composable
     private fun HorizontalPlayerContent(
-        ad: BlazeAd?,
         artworkOrVideoState: ArtworkOrVideoState,
         headerData: PlayerViewModel.PlayerHeader,
         playerColors: PlayerColors,
@@ -887,107 +853,16 @@ class PlayerHeaderFragment :
             exit = shelfExitTransition,
             modifier = modifier,
         ) {
-            if (ad == null) {
-                HorizontalPlayerContentWithoutAd(
-                    artworkOrVideoState = artworkOrVideoState,
-                    headerData = headerData,
-                    playerColors = playerColors,
-                )
-            } else {
-                HorizontalPlayerContentWithAd(
-                    ad = ad,
-                    artworkOrVideoState = artworkOrVideoState,
-                    headerData = headerData,
-                    playerColors = playerColors,
-                )
-            }
+            HorizontalPlayerLayout(
+                artworkOrVideoState = artworkOrVideoState,
+                headerData = headerData,
+                playerColors = playerColors,
+            )
         }
     }
 
     @Composable
-    private fun HorizontalPlayerContentWithAd(
-        ad: BlazeAd,
-        artworkOrVideoState: ArtworkOrVideoState,
-        headerData: PlayerViewModel.PlayerHeader,
-        playerColors: PlayerColors,
-        modifier: Modifier = Modifier,
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(32.dp),
-            modifier = modifier.fillMaxSize(),
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .scrollable(
-                        state = rememberScrollableState { it },
-                        orientation = Orientation.Vertical,
-                        flingBehavior = showUpNextFlingBehavior,
-                    ),
-            ) {
-                AdAndArtworkHorizontal(
-                    artworkOrVideoState = artworkOrVideoState,
-                    playerColors = playerColors,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                )
-                Spacer(
-                    modifier = Modifier.height(16.dp),
-                )
-                PlayerSeekBar(
-                    headerData = headerData,
-                    playerColors = playerColors,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(
-                    modifier = Modifier.height(12.dp),
-                )
-                PlayerControls(
-                    playerColors = playerColors,
-                    playerViewModel = viewModel,
-                )
-                Spacer(
-                    modifier = Modifier.height(16.dp),
-                )
-                PlayerShelf(
-                    playerColors = playerColors,
-                    shelfSharedViewModel = shelfSharedViewModel,
-                    playerViewModel = viewModel,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            Column(
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .scrollable(
-                        state = rememberScrollableState { it },
-                        orientation = Orientation.Vertical,
-                        flingBehavior = showUpNextFlingBehavior,
-                    ),
-            ) {
-                Spacer(
-                    modifier = Modifier.weight(1f),
-                )
-                AdBanner(
-                    ad = ad,
-                    colors = rememberAdColors().bannerAd,
-                    onAdClick = { openAd(ad) },
-                    onOptionsClick = { openAdReportSheet(ad, playerColors.podcastColors) },
-                )
-                Spacer(
-                    modifier = Modifier.weight(3f),
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun HorizontalPlayerContentWithoutAd(
+    private fun HorizontalPlayerLayout(
         artworkOrVideoState: ArtworkOrVideoState,
         headerData: PlayerViewModel.PlayerHeader,
         playerColors: PlayerColors,
@@ -1124,36 +999,15 @@ class PlayerHeaderFragment :
     }
 
     @Composable
-    private fun AdAndArtwork(
-        ad: BlazeAd?,
+    private fun ArtworkOnly(
         artworkOrVideoState: ArtworkOrVideoState,
         isTranscriptOpen: Boolean,
-        playerColors: PlayerColors,
         modifier: Modifier = Modifier,
     ) {
         SubcomposeLayout(modifier = modifier) { constraints ->
-            val adPlaceable = if (!isTranscriptOpen) {
-                subcompose("ad") {
-                    AnimatedNonNullVisibility(
-                        item = ad,
-                        enter = adEnterTransition,
-                        exit = adExitTransition,
-                    ) { ad ->
-                        AdBanner(
-                            ad = ad,
-                            colors = rememberAdColors().bannerAd,
-                            onAdClick = { openAd(ad) },
-                            onOptionsClick = { openAdReportSheet(ad, playerColors.podcastColors) },
-                        )
-                    }
-                }.getOrNull(0)?.measure(constraints.copyMaxDimensions())
-            } else {
-                null
-            }
-
             val spacingDp = 16.dp
             val spacingPx = spacingDp.roundToPx()
-            val availableHeightPx = constraints.maxHeight - (adPlaceable?.height ?: 0) - spacingPx
+            val availableHeightPx = constraints.maxHeight - spacingPx
             val artworkPlaceable = if (!isTranscriptOpen && availableHeightPx > 64.dp.roundToPx()) {
                 val availableHeightDp = availableHeightPx.toDp()
                 val artworkConstraints = Constraints(maxHeight = availableHeightPx, maxWidth = constraints.maxWidth)
@@ -1174,76 +1028,12 @@ class PlayerHeaderFragment :
             }
 
             layout(constraints.maxWidth, constraints.maxHeight) {
-                val placeablesHeight = (adPlaceable?.height ?: 0) + (artworkPlaceable?.height ?: 0)
+                val placeablesHeight = artworkPlaceable?.height ?: 0
                 val yOffset = (constraints.maxHeight - placeablesHeight) / 2
 
-                adPlaceable?.let { placeable ->
-                    placeable.place((constraints.maxWidth - adPlaceable.width) / 2, yOffset)
-                }
                 artworkPlaceable?.let { placeable ->
-                    placeable.place((constraints.maxWidth - placeable.width) / 2, yOffset + (adPlaceable?.height ?: 0))
+                    placeable.place((constraints.maxWidth - placeable.width) / 2, yOffset)
                 }
-            }
-        }
-    }
-
-    @Composable
-    private fun AdAndArtworkHorizontal(
-        artworkOrVideoState: ArtworkOrVideoState,
-        playerColors: PlayerColors,
-        modifier: Modifier = Modifier,
-    ) {
-        when (artworkOrVideoState) {
-            is ArtworkOrVideoState.Artwork -> {
-                Row(
-                    modifier = modifier,
-                ) {
-                    ArtworkImage(
-                        state = artworkOrVideoState.artworkImageState,
-                        cornerRadius = 8.dp,
-                        modifier = Modifier.size(64.dp),
-                    )
-                    Spacer(
-                        modifier = Modifier.width(16.dp),
-                    )
-                    EpisodeTitles(
-                        playerColors = playerColors,
-                        playerViewModel = viewModel,
-                        textAlign = TextAlign.Start,
-                    )
-                }
-            }
-
-            is ArtworkOrVideoState.Video -> {
-                Column(
-                    modifier = modifier,
-                ) {
-                    VideoBox(
-                        player = artworkOrVideoState.player,
-                        videoSurfaceState = playbackManager.videoSurfaceState,
-                        configureVideoView = { videoView ->
-                            videoView.setOnClickListener { onFullScreenVideoClick() }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(
-                        modifier = Modifier.height(16.dp),
-                    )
-                    EpisodeTitles(
-                        playerColors = playerColors,
-                        playerViewModel = viewModel,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-
-            is ArtworkOrVideoState.NoContent -> {
-                EpisodeTitles(
-                    playerColors = playerColors,
-                    playerViewModel = viewModel,
-                    textAlign = TextAlign.Start,
-                    modifier = modifier,
-                )
             }
         }
     }
@@ -1315,18 +1105,6 @@ class PlayerHeaderFragment :
             }
         }
     }
-
-    @Composable
-    private fun AdImpressionEffect(
-        ad: BlazeAd?,
-        isPlayerOpen: Boolean,
-    ) {
-        LaunchedEffect(ad?.id, isPlayerOpen) {
-            if (ad != null && isPlayerOpen) {
-                viewModel.trackAdImpression(ad)
-            }
-        }
-    }
 }
 
 private class TranscriptTransitionData(
@@ -1343,9 +1121,6 @@ private class TranscriptTransitionData(
     val controlsOffset get() = seekBarOffset * 0.9f
     val controlsScale by controlsScale
 }
-
-private val adEnterTransition = fadeIn(spring(stiffness = Spring.StiffnessVeryLow)) + expandVertically(spring(stiffness = Spring.StiffnessMediumLow))
-private val adExitTransition = fadeOut(spring(stiffness = Spring.StiffnessVeryLow)) + shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow))
 
 private val transcriptEnterTransition = fadeIn(spring(stiffness = Spring.StiffnessVeryLow)) + slideInVertically(initialOffsetY = { it })
 private val transcriptExitTransition = fadeOut(spring(stiffness = Spring.StiffnessHigh))

@@ -10,8 +10,6 @@ import au.com.shiftyjelly.pocketcasts.models.to.TranscriptType
 import au.com.shiftyjelly.pocketcasts.payment.PurchaseApprover
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.SettingsImpl
-import au.com.shiftyjelly.pocketcasts.repositories.ads.BlazeAdsManager
-import au.com.shiftyjelly.pocketcasts.repositories.ads.BlazeAdsManagerImpl
 import au.com.shiftyjelly.pocketcasts.repositories.analytics.AnalyticsLiveDebugListener
 import au.com.shiftyjelly.pocketcasts.repositories.appreview.AppReviewAnalyticsListener
 import au.com.shiftyjelly.pocketcasts.repositories.appreview.AppReviewManager
@@ -259,9 +257,6 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun providePlaylistManager(playlistManagerImpl: PlaylistManagerImpl): PlaylistManager
-
-    @Binds
-    abstract fun provideBlazeAdsManager(blazeAdsManagerImpl: BlazeAdsManagerImpl): BlazeAdsManager
 
     @Binds
     abstract fun provideAppReviewManager(appReviewManagerImpl: AppReviewManagerImpl): AppReviewManager

@@ -24,19 +24,26 @@ class PodcastsOptionsDialog(
     val fragment: Fragment,
     val settings: Settings,
     private val eventHorizon: EventHorizon,
+    private val onQueueVisiblePodcasts: () -> Unit,
 ) {
     private var showDialog: OptionsDialog? = null
     private var sortDialog: OptionsDialog? = null
     private var badgeDialog: OptionsDialog? = null
+    private var caughtUpPodcastsDialog: OptionsDialog? = null
     private val fragmentManager: FragmentManager?
         get() = fragment.activity?.supportFragmentManager
 
     fun show() {
         val dialog = OptionsDialog()
             .addTextOption(
+                titleId = LR.string.podcast_player_queue_fewest_first,
+                imageId = IR.drawable.ic_upnext_playnext,
+                click = onQueueVisiblePodcasts,
+            )
+            .addTextOption(
                 titleId = LR.string.podcasts_menu_sort_by,
                 imageId = IR.drawable.ic_sort,
-                valueId = settings.podcastsSortType.value.labelId,
+                valueId = if (settings.sortPodcastsByUnfinishedCount.value) LR.string.podcasts_sort_by_unfinished_count else settings.podcastsSortType.value.labelId,
                 click = {
                     openSortOptions()
                     trackTapOnModalOption(ModalOption.SORT_BY)
@@ -86,6 +93,12 @@ class PodcastsOptionsDialog(
                 },
             )
             .addTextOption(
+                titleId = LR.string.hide_caught_up_podcasts,
+                imageId = R.drawable.ic_eyeball,
+                valueId = caughtUpPodcastsLabelId(settings.hidePodcastsWithNoUnfinishedEpisodes.value),
+                click = { openCaughtUpPodcastOptions() },
+            )
+            .addTextOption(
                 titleId = LR.string.podcasts_menu_share_podcasts,
                 imageId = R.drawable.ic_share_option,
                 click = {
@@ -111,13 +124,24 @@ class PodcastsOptionsDialog(
         for (order in PodcastsSortType.entries) {
             dialog.addCheckedOption(
                 titleId = order.labelId,
-                checked = order.clientId == sortOrder.clientId,
+                checked = !settings.sortPodcastsByUnfinishedCount.value && order.clientId == sortOrder.clientId,
                 click = {
+                    settings.sortPodcastsByUnfinishedCount.set(false, updateModifiedAt = false)
                     settings.podcastsSortType.set(order, updateModifiedAt = true)
                     trackSortByChanged(order)
                 },
             )
         }
+        dialog.addCheckedOption(
+            titleId = LR.string.podcasts_sort_by_unfinished_count,
+            checked = settings.sortPodcastsByUnfinishedCount.value,
+            click = { settings.sortPodcastsByUnfinishedCount.set(true, updateModifiedAt = false) },
+        )
+        dialog.addCheckedOption(
+            titleId = LR.string.podcasts_sort_reverse_order,
+            checked = settings.reversePodcastsSort.value,
+            click = { settings.reversePodcastsSort.set(!settings.reversePodcastsSort.value, updateModifiedAt = false) },
+        )
         fragmentManager?.let {
             dialog.show(it, "podcasts_sort_dialog")
             sortDialog = dialog
@@ -162,10 +186,35 @@ class PodcastsOptionsDialog(
         }
     }
 
+    private fun openCaughtUpPodcastOptions() {
+        val hidden = settings.hidePodcastsWithNoUnfinishedEpisodes.value
+        val dialog = OptionsDialog()
+            .setTitle(fragment.getString(LR.string.hide_caught_up_podcasts))
+            .setDescription(fragment.getString(LR.string.hide_caught_up_podcasts_summary))
+        for (hide in listOf(false, true)) {
+            dialog.addCheckedOption(
+                titleId = caughtUpPodcastsLabelId(hide),
+                checked = hide == hidden,
+                click = { settings.hidePodcastsWithNoUnfinishedEpisodes.set(hide, updateModifiedAt = false) },
+            )
+        }
+        fragmentManager?.let {
+            dialog.show(it, "podcasts_caught_up_podcasts")
+            caughtUpPodcastsDialog = dialog
+        }
+    }
+
+    private fun caughtUpPodcastsLabelId(hide: Boolean) = if (hide) {
+        LR.string.podcasts_caught_up_hide
+    } else {
+        LR.string.podcasts_caught_up_show
+    }
+
     fun dismiss() {
         showDialog?.dismiss()
         sortDialog?.dismiss()
         badgeDialog?.dismiss()
+        caughtUpPodcastsDialog?.dismiss()
     }
 
     private fun trackTapOnModalOption(option: ModalOption) {

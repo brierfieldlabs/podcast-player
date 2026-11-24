@@ -43,7 +43,7 @@ data class Podcast(
     @ColumnInfo(name = "latest_episode_uuid") var latestEpisodeUuid: String? = null,
     @ColumnInfo(name = "author") var author: String = "",
     @ColumnInfo(name = "sort_order") var sortPosition: Int = 0,
-    @ColumnInfo(name = "episodes_sort_order") var episodesSortType: EpisodesSortType = EpisodesSortType.EPISODES_SORT_BY_DATE_DESC,
+    @ColumnInfo(name = "episodes_sort_order") var episodesSortType: EpisodesSortType = EpisodesSortType.EPISODES_SORT_BY_DATE_ASC,
     @ColumnInfo(name = "episodes_sort_order_modified") var episodesSortTypeModified: Date? = null,
     @ColumnInfo(name = "latest_episode_date") var latestEpisodeDate: Date? = null,
     // TODO remove this later in a separate PR as it is no longer used
@@ -109,6 +109,18 @@ data class Podcast(
 ) : Serializable {
 
     constructor() : this(uuid = "")
+
+    // Older subscriptions keep the upstream newest-first value even if nobody changed the sort.
+    // Show those unmodified records oldest-first while preserving manual per-podcast choices.
+    val effectiveEpisodesSortType: EpisodesSortType
+        get() = if (
+            episodesSortTypeModified == null &&
+            episodesSortType == EpisodesSortType.EPISODES_SORT_BY_DATE_DESC
+        ) {
+            EpisodesSortType.EPISODES_SORT_BY_DATE_ASC
+        } else {
+            episodesSortType
+        }
 
     enum class AutoAddUpNext(
         val databaseInt: Int,

@@ -31,7 +31,7 @@ class FolderOptionsDialog(
             .addTextOption(
                 titleId = LR.string.podcasts_menu_sort_by,
                 imageId = IR.drawable.ic_sort,
-                valueId = folder.podcastsSortType.labelId,
+                valueId = if (settings.sortPodcastsByUnfinishedCount.value) LR.string.podcasts_sort_by_unfinished_count else folder.podcastsSortType.labelId,
                 click = {
                     onOpenSortOptions()
                     openSortOptions()
@@ -64,12 +64,23 @@ class FolderOptionsDialog(
         for (sortType in PodcastsSortType.values()) {
             dialog.addCheckedOption(
                 titleId = sortType.labelId,
-                checked = sortType == podcastsSortType,
+                checked = !settings.sortPodcastsByUnfinishedCount.value && sortType == podcastsSortType,
                 click = {
+                    settings.sortPodcastsByUnfinishedCount.set(false, updateModifiedAt = false)
                     onSortTypeChanged(sortType)
                 },
             )
         }
+        dialog.addCheckedOption(
+            titleId = LR.string.podcasts_sort_by_unfinished_count,
+            checked = settings.sortPodcastsByUnfinishedCount.value,
+            click = { settings.sortPodcastsByUnfinishedCount.set(true, updateModifiedAt = false) },
+        )
+        dialog.addCheckedOption(
+            titleId = LR.string.podcasts_sort_reverse_order,
+            checked = settings.reversePodcastsSort.value,
+            click = { settings.reversePodcastsSort.set(!settings.reversePodcastsSort.value, updateModifiedAt = false) },
+        )
         dialog.show(fragmentManager, "podcasts_sort_dialog")
         sortDialog = dialog
     }

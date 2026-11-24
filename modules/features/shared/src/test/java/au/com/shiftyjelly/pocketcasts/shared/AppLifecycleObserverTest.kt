@@ -6,7 +6,6 @@ import androidx.lifecycle.LifecycleOwner
 import au.com.shiftyjelly.pocketcasts.analytics.AppLifecycleAnalytics
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.UserSetting
-import au.com.shiftyjelly.pocketcasts.repositories.ads.BlazeAdsManager
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationScheduler
 import au.com.shiftyjelly.pocketcasts.utils.AppPlatform
 import au.com.shiftyjelly.pocketcasts.utils.featureflag.providers.DefaultReleaseFeatureProvider
@@ -83,8 +82,6 @@ class AppLifecycleObserverTest {
 
     @Mock private lateinit var notificationScheduler: NotificationScheduler
 
-    @Mock private lateinit var blazeAdsManager: BlazeAdsManager
-
     @Mock private lateinit var appLifecycleProviderImpl: AppLifecycleProviderImpl
 
     private var coroutineScope = CoroutineScope(UnconfinedTestDispatcher())
@@ -111,7 +108,6 @@ class AppLifecycleObserverTest {
             appLifecycleAnalytics = appLifecycleAnalytics,
             appLifecycleOwner = appLifecycleOwner,
             appLifecycleProviderImpl = appLifecycleProviderImpl,
-            blazeAdsManager = blazeAdsManager,
             preferencesFeatureProvider = preferencesFeatureProvider,
             defaultReleaseFeatureProvider = defaultReleaseFeatureProvider,
             firebaseRemoteFeatureProvider = firebaseRemoteFeatureProvider,

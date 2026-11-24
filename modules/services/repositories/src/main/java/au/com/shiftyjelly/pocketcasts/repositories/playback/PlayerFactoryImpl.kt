@@ -12,6 +12,7 @@ import javax.inject.Inject
 
 class PlayerFactoryImpl @Inject constructor(
     private val settings: Settings,
+    private val audioPreferences: PodcastPlayerAudioPreferences,
     private val statsManager: StatsManager,
     private val playbackStatsCollector: PlaybackStatsCollector,
     private val dataSourceFactory: ExoPlayerDataSourceFactory,
@@ -32,6 +33,7 @@ class PlayerFactoryImpl @Inject constructor(
     override fun createSimplePlayer(onPlayerEvent: (Player, PlayerEvent) -> Unit): Player {
         return SimplePlayer(
             settings = settings,
+            audioPreferences = audioPreferences,
             statsManager = statsManager,
             playbackStatsCollector = playbackStatsCollector,
             context = context,

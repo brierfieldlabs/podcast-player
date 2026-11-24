@@ -10,6 +10,7 @@ import au.com.shiftyjelly.pocketcasts.models.di.ModelModule
 import au.com.shiftyjelly.pocketcasts.models.di.addTypeConverters
 import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
 import com.squareup.moshi.Moshi
 import java.util.Date
 import java.util.UUID
@@ -180,6 +181,56 @@ class PodcastDaoTest {
         assertTrue("Selected podcast should be enabled", podcastDao.findPodcastByUuid(podcast1.uuid)!!.isShowNotifications)
         assertFalse("Deselected podcast should be disabled", podcastDao.findPodcastByUuid(podcast2.uuid)!!.isShowNotifications)
         assertFalse("Unsubscribed podcast should be left alone", podcastDao.findPodcastByUuid(unsubscribed.uuid)!!.isShowNotifications)
+    }
+
+    @Test
+    fun observedCaughtUpPodcastsExcludeUnfinishedAndEmptyFeeds() = runTest {
+        val played = insertSubscribedPodcastWithEpisodes(EpisodePlayingStatus.COMPLETED to false)
+        val dismissedUnplayed = insertSubscribedPodcastWithEpisodes(EpisodePlayingStatus.NOT_PLAYED to true)
+        val playedAndDismissed = insertSubscribedPodcastWithEpisodes(
+            EpisodePlayingStatus.COMPLETED to false,
+            EpisodePlayingStatus.NOT_PLAYED to true,
+        )
+        val inProgress = insertSubscribedPodcastWithEpisodes(
+            EpisodePlayingStatus.COMPLETED to false,
+            EpisodePlayingStatus.IN_PROGRESS to false,
+        )
+        val unplayed = insertSubscribedPodcastWithEpisodes(EpisodePlayingStatus.NOT_PLAYED to false)
+        val emptyFeed = insertSubscribedPodcastWithEpisodes()
+        val unsubscribed = Podcast(uuid = UUID.randomUUID().toString(), isSubscribed = false)
+        podcastDao.insertSuspend(unsubscribed)
+        episodeDao.insert(
+            PodcastEpisode(
+                uuid = UUID.randomUUID().toString(),
+                publishedDate = Date(),
+                podcastUuid = unsubscribed.uuid,
+                playingStatus = EpisodePlayingStatus.COMPLETED,
+            ),
+        )
+
+        val hidden = podcastDao.observePlayedPodcastUuids().first().toSet()
+        assertEquals(setOf(played.uuid, dismissedUnplayed.uuid, playedAndDismissed.uuid), hidden)
+        assertFalse(inProgress.uuid in hidden)
+        assertFalse(unplayed.uuid in hidden)
+        assertFalse(emptyFeed.uuid in hidden)
+        assertFalse(unsubscribed.uuid in hidden)
+    }
+
+    private suspend fun insertSubscribedPodcastWithEpisodes(vararg episodes: Pair<EpisodePlayingStatus, Boolean>): Podcast {
+        val podcast = Podcast(uuid = UUID.randomUUID().toString(), isSubscribed = true)
+        podcastDao.insertSuspend(podcast)
+        episodes.forEach { (playingStatus, isArchived) ->
+            episodeDao.insert(
+                PodcastEpisode(
+                    uuid = UUID.randomUUID().toString(),
+                    publishedDate = Date(),
+                    podcastUuid = podcast.uuid,
+                    playingStatus = playingStatus,
+                    isArchived = isArchived,
+                ),
+            )
+        }
+        return podcast
     }
 
     private suspend fun insertTestPodcastsAndEpisodes(folderId: String? = null): Triple<Podcast, Podcast, Podcast> {

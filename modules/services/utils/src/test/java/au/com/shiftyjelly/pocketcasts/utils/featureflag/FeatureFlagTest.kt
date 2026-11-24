@@ -15,6 +15,25 @@ class FeatureFlagTest {
     val featureFlagRule = InMemoryFeatureFlagRule()
 
     @Test
+    fun `episode chat is disabled regardless of user or feature provider`() = runTest {
+        for (feature in listOf(Feature.EPISODE_CHAT, Feature.EPISODE_CHAT_FREE_BETA)) {
+            FeatureFlag.setEnabled(feature, true)
+
+            assertFalse(FeatureFlag.isEnabled(feature))
+            assertFalse(FeatureFlag.isEnabled(feature, immutable = true))
+            assertFalse(FeatureFlag.isEnabledForUser(feature, SubscriptionTier.Patron))
+            assertFalse(FeatureFlag.isEnabledForUser(feature, SubscriptionTier.Plus))
+            assertFalse(FeatureFlag.isEnabledForUser(feature, subscriptionTier = null))
+
+            FeatureFlag.isEnabledFlow(feature).test {
+                assertFalse(awaitItem())
+                FeatureFlag.updateFeatureFlowValues()
+                expectNoEvents()
+            }
+        }
+    }
+
+    @Test
     fun `read feature flag value`() {
         val isEnabled = FeatureFlag.isEnabled(Feature.TEST_FREE_FEATURE)
 

@@ -69,7 +69,6 @@ dependencies {
     implementation(libs.rx2.kotlin)
     implementation(libs.timber)
 
-    implementation(projects.modules.features.ads)
     implementation(projects.modules.features.account)
     implementation(projects.modules.features.reimagine)
     implementation(projects.modules.features.search)

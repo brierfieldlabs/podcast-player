@@ -1,15 +1,13 @@
 package au.com.shiftyjelly.pocketcasts.podcasts.view.podcasts
 
-import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Rect
 import android.os.Bundle
 import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
+import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.Toolbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,7 +37,6 @@ import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
@@ -49,22 +46,18 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import au.com.shiftyjelly.pocketcasts.ads.AdReportFragment
+import androidx.recyclerview.widget.SimpleItemAnimator
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
 import au.com.shiftyjelly.pocketcasts.compose.AppTheme
 import au.com.shiftyjelly.pocketcasts.compose.CallOnce
-import au.com.shiftyjelly.pocketcasts.compose.ad.AdBanner
-import au.com.shiftyjelly.pocketcasts.compose.ad.rememberAdColors
 import au.com.shiftyjelly.pocketcasts.compose.components.NoContentBanner
 import au.com.shiftyjelly.pocketcasts.compose.components.TipPosition
 import au.com.shiftyjelly.pocketcasts.compose.components.Tooltip
 import au.com.shiftyjelly.pocketcasts.compose.extensions.setContentWithViewCompositionStrategy
-import au.com.shiftyjelly.pocketcasts.models.entity.BlazeAd
 import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
 import au.com.shiftyjelly.pocketcasts.models.to.RefreshState
 import au.com.shiftyjelly.pocketcasts.models.type.PodcastsSortType
@@ -74,23 +67,21 @@ import au.com.shiftyjelly.pocketcasts.podcasts.view.folders.FolderCreateFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.folders.FolderCreateSharedViewModel
 import au.com.shiftyjelly.pocketcasts.podcasts.view.folders.FolderEditFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.folders.FolderEditPodcastsFragment
-import au.com.shiftyjelly.pocketcasts.podcasts.view.folders.SuggestedFoldersFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.notifications.EnableNotificationsPromptFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.view.podcast.PodcastFragment
+import au.com.shiftyjelly.pocketcasts.podcasts.view.podcast.PodcastSettingsFragment
 import au.com.shiftyjelly.pocketcasts.podcasts.viewmodel.PodcastsViewModel
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.preferences.model.PodcastGridLayoutType
+import au.com.shiftyjelly.pocketcasts.reimagine.podcast.SharePodcastFragment
 import au.com.shiftyjelly.pocketcasts.search.SearchFragment
-import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingFlow
-import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingLauncher
-import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingUpgradeSource
 import au.com.shiftyjelly.pocketcasts.ui.extensions.getColor
 import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import au.com.shiftyjelly.pocketcasts.utils.extensions.hideShadow
 import au.com.shiftyjelly.pocketcasts.utils.featureflag.Feature
 import au.com.shiftyjelly.pocketcasts.utils.featureflag.FeatureFlag
-import au.com.shiftyjelly.pocketcasts.utils.log.LogBuffer
 import au.com.shiftyjelly.pocketcasts.views.adapter.LockingDragAndDropCallback
+import au.com.shiftyjelly.pocketcasts.views.dialog.ConfirmationDialog
 import au.com.shiftyjelly.pocketcasts.views.extensions.quickScrollToTop
 import au.com.shiftyjelly.pocketcasts.views.fragments.BaseFragment
 import au.com.shiftyjelly.pocketcasts.views.fragments.BaseFragmentToolbar.ChromeCastButton.Shown
@@ -98,8 +89,6 @@ import au.com.shiftyjelly.pocketcasts.views.fragments.TopScrollable
 import au.com.shiftyjelly.pocketcasts.views.helper.NavigationIcon
 import au.com.shiftyjelly.pocketcasts.views.helper.ToolbarColors
 import au.com.shiftyjelly.pocketcasts.views.helper.UiUtil
-import com.automattic.eventhorizon.BannerAdImpressionEvent
-import com.automattic.eventhorizon.BannerAdTappedEvent
 import com.automattic.eventhorizon.CreateFolderSourceType
 import com.automattic.eventhorizon.EventHorizon
 import com.automattic.eventhorizon.FolderChoosePodcastsShownEvent
@@ -113,13 +102,10 @@ import com.automattic.eventhorizon.PodcastsListFolderButtonTappedEvent
 import com.automattic.eventhorizon.PodcastsListFolderTappedEvent
 import com.automattic.eventhorizon.PodcastsListOptionsButtonTappedEvent
 import com.automattic.eventhorizon.PodcastsListPodcastTappedEvent
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.withCreationCallback
 import javax.inject.Inject
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.channels.trySendBlocking
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import au.com.shiftyjelly.pocketcasts.images.R as IR
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
@@ -134,6 +120,14 @@ class PodcastsFragment :
 
     companion object {
         private const val LAST_ORIENTATION_NOT_SET = -1
+        private const val MENU_QUEUE_UNFINISHED = 1
+        private const val MENU_PLAY_OLDEST = 2
+        private const val MENU_MARK_ALL_PLAYED = 4
+        private const val MENU_PODCAST_SETTINGS = 5
+        private const val MENU_SHARE = 6
+        private const val MENU_UNSUBSCRIBE = 7
+        private const val MENU_PLAY_ALL_UNFINISHED = 8
+        private const val MENU_DOWNLOAD_ALL = 9
         const val ARG_FOLDER_UUID = "ARG_FOLDER_UUID"
 
         fun newInstance(folderUuid: String): PodcastsFragment {
@@ -154,8 +148,7 @@ class PodcastsFragment :
     private var podcastOptionsDialog: PodcastsOptionsDialog? = null
     private var folderOptionsDialog: FolderOptionsDialog? = null
     private var folderAdapter: FolderAdapter? = null
-    private var bannerAdAdapter: BannerAdAdapter? = null
-    private var adapter: ConcatAdapter? = null
+    private var adapter: FolderAdapter? = null
 
     private var realBinding: FragmentPodcastsBinding? = null
     private val binding: FragmentPodcastsBinding get() = realBinding ?: throw IllegalStateException("Trying to access the binding outside of the view lifecycle.")
@@ -172,6 +165,8 @@ class PodcastsFragment :
     private var lastOrientationRefreshed = LAST_ORIENTATION_NOT_SET
     private var lastWidthPx: Int = 0
     private var listState: Parcelable? = null
+    private var displayedGridLayout: PodcastGridLayoutType? = null
+    private var latestBottomInset = 0
 
     private val folderUuid: String?
         get() = arguments?.getString(ARG_FOLDER_UUID)
@@ -187,18 +182,7 @@ class PodcastsFragment :
             theme = theme,
         )
         this.folderAdapter = folderAdapter
-        val bannerAdAdapter = BannerAdAdapter(
-            themeType = theme.activeTheme,
-            onAdClick = ::openAd,
-            onAdOptionsClick = ::openAdReportFlow,
-            onAdImpression = ::trackAdImpression,
-        )
-        this.bannerAdAdapter = bannerAdAdapter
-
-        val config = ConcatAdapter.Config.Builder()
-            .setIsolateViewTypes(false)
-            .build()
-        val adapter = ConcatAdapter(config, bannerAdAdapter, folderAdapter)
+        val adapter = folderAdapter
         this.adapter = adapter
 
         binding.appBarLayout.hideShadow()
@@ -207,10 +191,15 @@ class PodcastsFragment :
             scope = viewLifecycleOwner.lifecycleScope,
             adapter = folderAdapter,
             commitItems = viewModel::reorderItems,
+            canDragHolder = { it !is FolderAdapter.PodcastViewHolder },
+            canDrag = {
+                !settings.sortPodcastsByUnfinishedCount.value &&
+                    !settings.reversePodcastsSort.value
+            },
         )
         binding.recyclerView.let {
             it.adapter = adapter
-            it.addItemDecoration(SpaceItemDecoration())
+            (it.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
             ItemTouchHelper(dragAndDropCallback).attachToRecyclerView(it)
         }
 
@@ -225,15 +214,6 @@ class PodcastsFragment :
             chromeCastButton = Shown(chromeCastAnalytics),
         )
         toolbar.setOnMenuItemClickListener(this)
-
-        toolbar.menu.findItem(R.id.folders_locked).setOnMenuItemClickListener {
-            if (viewModel.areSuggestedFoldersAvailable.value) {
-                showSuggestedFoldersCreation(SuggestedFoldersFragment.Source.ToolbarButton)
-            } else {
-                OnboardingLauncher.openOnboardingFlow(requireActivity(), OnboardingFlow.Upsell(OnboardingUpgradeSource.FOLDERS))
-            }
-            true
-        }
 
         binding.swipeRefreshLayout.setOnRefreshListener {
             viewModel.refreshPodcasts()
@@ -268,7 +248,6 @@ class PodcastsFragment :
                         toolbarColors = ToolbarColors.theme(
                             theme = theme,
                             context = requireContext(),
-                            excludeMenuItems = listOf(R.id.folders_locked),
                         )
                         navigationIcon = NavigationIcon.None
                     } else {
@@ -282,7 +261,6 @@ class PodcastsFragment :
                         navigationIcon = navigationIcon,
                     )
 
-                    toolbar.menu.findItem(R.id.folders_locked)?.isVisible = !isSignedInAsPlusOrPatron
                     toolbar.menu.findItem(R.id.create_folder)?.isVisible = rootFolder && isSignedInAsPlusOrPatron
                     toolbar.menu.findItem(R.id.search_podcasts)?.isVisible = rootFolder
 
@@ -295,13 +273,16 @@ class PodcastsFragment :
             }
         }
 
+        setupEmptyStateView()
+
+        // One collector per view lifecycle. Previously every grid refresh
+        // launched another long-lived inset collector.
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.activeAd.collect { activeAd ->
-                bannerAdAdapter?.submitList(listOfNotNull(activeAd))
+            settings.bottomInset.collect { inset ->
+                latestBottomInset = inset
+                updateGridPadding()
             }
         }
-
-        setupEmptyStateView()
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -314,7 +295,7 @@ class PodcastsFragment :
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.podcastUuidToBadge.collect { podcastUuidToBadge ->
-                    folderAdapter?.badgeType = settings.podcastBadgeType.value
+                    folderAdapter?.setBadgeType(settings.podcastBadgeType.value)
                     folderAdapter?.setBadges(podcastUuidToBadge)
                 }
             }
@@ -344,16 +325,7 @@ class PodcastsFragment :
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.refreshSuggestedFolders()
-            }
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.areSuggestedFoldersAvailable.combine(viewModel.notificationPromptState) { areFoldersAvailable, notificationsState ->
-                    areFoldersAvailable to notificationsState
-                }.collect { (areFoldersAvailable, notificationState) ->
-                    // Don't stack popups, notification prompt takes precedence over suggested folders popup
+                viewModel.notificationPromptState.collect { notificationState ->
                     if (!notificationState.hasPermission && !notificationState.hasShownPromptBefore && FeatureFlag.isEnabled(Feature.NOTIFICATIONS_REVAMP)) {
                         if (parentFragmentManager.findFragmentByTag("notifications_prompt") == null) {
                             EnableNotificationsPromptFragment
@@ -362,10 +334,6 @@ class PodcastsFragment :
                         }
                     } else {
                         (parentFragmentManager.findFragmentByTag("notifications_prompt") as? DialogFragment)?.dismiss()
-
-                        if (areFoldersAvailable && viewModel.isEligibleForSuggestedFoldersPopup()) {
-                            showSuggestedFoldersCreation(SuggestedFoldersFragment.Source.Popup)
-                        }
                     }
                 }
             }
@@ -375,6 +343,7 @@ class PodcastsFragment :
     override fun onDestroyView() {
         listState = binding.recyclerView.layoutManager?.onSaveInstanceState()
         binding.recyclerView.adapter = null
+        displayedGridLayout = null
         super.onDestroyView()
         realBinding = null
     }
@@ -399,7 +368,7 @@ class PodcastsFragment :
 
             R.id.create_folder -> {
                 eventHorizon.track(PodcastsListFolderButtonTappedEvent)
-                handleFolderCreation()
+                showCustomFolderCreation()
                 true
             }
 
@@ -455,17 +424,19 @@ class PodcastsFragment :
                 show()
             }
         } else {
-            podcastOptionsDialog = PodcastsOptionsDialog(this, settings, eventHorizon).apply {
+            podcastOptionsDialog = PodcastsOptionsDialog(this, settings, eventHorizon) {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val count = viewModel.queueVisiblePodcastsByUnfinishedCount()
+                    val message = if (count == 0) {
+                        getString(LR.string.podcast_player_queue_none)
+                    } else {
+                        getString(LR.string.podcast_player_queued_count, count)
+                    }
+                    showSnackBar(message)
+                }
+            }.apply {
                 show()
             }
-        }
-    }
-
-    private fun handleFolderCreation() {
-        if (viewModel.areSuggestedFoldersAvailable.value) {
-            showSuggestedFoldersCreation(SuggestedFoldersFragment.Source.ToolbarButton)
-        } else {
-            showCustomFolderCreation()
         }
     }
 
@@ -473,16 +444,6 @@ class PodcastsFragment :
         FolderCreateFragment
             .newInstance(CreateFolderSourceType.PodcastsList)
             .show(parentFragmentManager, "create_folder_card")
-    }
-
-    private fun showSuggestedFoldersCreation(
-        source: SuggestedFoldersFragment.Source,
-    ) {
-        if (parentFragmentManager.findFragmentByTag("suggested_folders") == null) {
-            SuggestedFoldersFragment
-                .newInstance(source)
-                .show(parentFragmentManager, "suggested_folders")
-        }
     }
 
     override fun onPause() {
@@ -524,29 +485,8 @@ class PodcastsFragment :
     private fun setupEmptyStateView() {
         val folderUuid = folderUuid
 
-        val emptyViewVisibilityFlow = callbackFlow<Boolean> {
-            val view = binding.emptyView
-            var isVisible = view.isVisible
-            send(isVisible)
-
-            val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    val newVisibility = view.isVisible
-                    if (isVisible != newVisibility) {
-                        isVisible = newVisibility
-                    }
-                    trySendBlocking(isVisible)
-                }
-            }
-            view.viewTreeObserver.addOnGlobalLayoutListener(listener)
-            awaitClose {
-                view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
-            }
-        }
-
         binding.emptyView.setContentWithViewCompositionStrategy {
-            val activeAd by viewModel.activeAd.collectAsState()
-            val isViewVisible by emptyViewVisibilityFlow.collectAsState(false)
+            val uiState by viewModel.uiState.collectAsState()
 
             AppTheme(themeType = theme.activeTheme) {
                 Column(
@@ -557,26 +497,17 @@ class PodcastsFragment :
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp),
                 ) {
-                    activeAd?.let { ad ->
-                        AdBanner(
-                            ad = ad,
-                            colors = rememberAdColors().bannerAd,
-                            onAdClick = { openAd(ad) },
-                            onOptionsClick = { openAdReportFlow(ad) },
-                        )
-
-                        LaunchedEffect(ad.id, isViewVisible) {
-                            if (isViewVisible) {
-                                trackAdImpression(ad)
-                            }
-                        }
-                    }
-
                     Spacer(
                         modifier = Modifier.weight(1f),
                     )
 
-                    if (folderUuid != null) {
+                    if (uiState.hasHiddenPodcasts) {
+                        NoUnfinishedPodcastsBanner(
+                            onClickButton = {
+                                settings.hidePodcastsWithNoUnfinishedEpisodes.set(false, updateModifiedAt = false)
+                            },
+                        )
+                    } else if (folderUuid != null) {
                         NoFolderPodcastsBanner(
                             onClickButton = {
                                 FolderEditPodcastsFragment.newInstance(folderUuid).show(parentFragmentManager, "add_podcasts_card")
@@ -599,59 +530,188 @@ class PodcastsFragment :
         }
     }
 
+    private fun updateGridPadding() {
+        val recyclerView = realBinding?.recyclerView ?: return
+        val padding = when (settings.podcastGridLayout.value) {
+            PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> 0
+            PodcastGridLayoutType.LIST_VIEW -> resources.getDimensionPixelSize(VR.dimen.list_outer_adding)
+        }
+        recyclerView.updatePadding(padding, padding, padding, padding + latestBottomInset)
+    }
+
     private fun setupGridView(savedInstanceState: Parcelable? = listState) {
-        val layoutManager = when (settings.podcastGridLayout.value) {
-            PodcastGridLayoutType.LARGE_ARTWORK -> createAdGridLayoutManager(UiUtil.getGridColumnCount(false, context))
-            PodcastGridLayoutType.SMALL_ARTWORK -> createAdGridLayoutManager(UiUtil.getGridColumnCount(true, context))
-            PodcastGridLayoutType.LIST_VIEW -> LinearLayoutManager(activity, RecyclerView.VERTICAL, false)
+        val recyclerView = realBinding?.recyclerView ?: return
+        val newLayout = settings.podcastGridLayout.value
+        val currentManager = recyclerView.layoutManager
+        val gridColumns = when (newLayout) {
+            PodcastGridLayoutType.LARGE_ARTWORK -> UiUtil.getGridColumnCount(false, context)
+            PodcastGridLayoutType.SMALL_ARTWORK -> UiUtil.getGridColumnCount(true, context)
+            PodcastGridLayoutType.LIST_VIEW -> null
         }
-        val badgeType = settings.podcastBadgeType.value
-        val currentLayoutManager = realBinding?.recyclerView?.layoutManager
-
-        // We only want to reset the adapter if something actually changed, or else it will flash
-        if (folderAdapter?.badgeType != badgeType ||
-            (currentLayoutManager != null && currentLayoutManager::class.java != layoutManager::class.java) ||
-            (currentLayoutManager is GridLayoutManager && layoutManager is GridLayoutManager && currentLayoutManager.spanCount != layoutManager.spanCount)
-        ) {
-            folderAdapter?.badgeType = badgeType
-            realBinding?.recyclerView?.adapter = adapter
+        val managerMatches = if (gridColumns != null) {
+            currentManager is GridLayoutManager && currentManager.spanCount == gridColumns
+        } else {
+            currentManager is LinearLayoutManager && currentManager !is GridLayoutManager
         }
 
-        val listOuterPadding = resources.getDimensionPixelSize(VR.dimen.list_outer_adding)
-        val gridOuterPadding = resources.getDimensionPixelSize(VR.dimen.grid_outer_padding)
-        viewLifecycleOwner.lifecycleScope.launch {
-            settings.bottomInset.collect {
-                val padding = when (settings.podcastGridLayout.value) {
-                    PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> gridOuterPadding
-                    PodcastGridLayoutType.LIST_VIEW -> listOuterPadding
-                }
-                realBinding?.recyclerView?.updatePadding(padding, padding, padding, padding + it)
+        folderAdapter?.setBadgeType(settings.podcastBadgeType.value)
+        val firstVisible = (currentManager as? LinearLayoutManager)?.findFirstVisibleItemPosition()
+
+        // Only a real layout-style switch requires new holders; the grid and
+        // list have different XML layouts. Badge changes do not.
+        val styleChanged = displayedGridLayout != null && displayedGridLayout != newLayout
+        if (styleChanged) {
+            recyclerView.adapter = null
+            recyclerView.recycledViewPool.clear()
+            recyclerView.adapter = adapter
+        }
+        displayedGridLayout = newLayout
+
+        if (!managerMatches) {
+            val newManager = if (gridColumns != null) {
+                createGridLayoutManager(gridColumns)
+            } else {
+                LinearLayoutManager(activity, RecyclerView.VERTICAL, false)
             }
+            recyclerView.layoutManager = newManager
+            if (currentManager == null) {
+                newManager.onRestoreInstanceState(savedInstanceState)
+            } else if (firstVisible != null && firstVisible != RecyclerView.NO_POSITION) {
+                newManager.scrollToPositionWithOffset(firstVisible, 0)
+            }
+        } else if (styleChanged && firstVisible != null && firstVisible != RecyclerView.NO_POSITION) {
+            // Switching large/small artwork at the same column count still
+            // replaces holders; keep the user's current position.
+            currentManager.scrollToPositionWithOffset(firstVisible, 0)
         }
-
-        realBinding?.recyclerView?.layoutManager = layoutManager
-        layoutManager.onRestoreInstanceState(savedInstanceState)
+        updateGridPadding()
     }
 
-    private fun createAdGridLayoutManager(spanCount: Int): GridLayoutManager {
-        return GridLayoutManager(requireActivity(), spanCount).apply {
-            val defaultLookup = GridLayoutManager.DefaultSpanSizeLookup()
-            spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
-                override fun getSpanSize(position: Int): Int {
-                    val itemViewTtype = adapter?.getItemViewType(position)
-                    return when (itemViewTtype) {
-                        AdapterViewTypeIds.BANNER_AD_ID -> spanCount
-                        else -> defaultLookup.getSpanSize(position)
-                    }
-                }
-            }
-        }
-    }
+    private fun createGridLayoutManager(spanCount: Int) = GridLayoutManager(requireActivity(), spanCount)
 
     override fun onPodcastClick(podcast: Podcast, view: View) {
         eventHorizon.track(PodcastsListPodcastTappedEvent)
         val fragment = PodcastFragment.newInstance(podcastUuid = podcast.uuid, sourceView = SourceView.PODCAST_LIST)
         (activity as FragmentHostListener).addFragment(fragment)
+    }
+
+    override fun onPodcastLongClick(podcast: Podcast, view: View) {
+        val popup = PopupMenu(requireContext(), view)
+        popup.menu.apply {
+            add(0, MENU_PLAY_ALL_UNFINISHED, 0, getString(LR.string.podcast_player_play_visible_unfinished))
+            add(0, MENU_QUEUE_UNFINISHED, 1, getString(LR.string.podcastgpt_queue_unfinished))
+            add(0, MENU_PLAY_OLDEST, 2, getString(LR.string.podcastgpt_play_oldest))
+            add(0, MENU_DOWNLOAD_ALL, 3, getString(LR.string.podcast_download_all))
+            add(0, MENU_MARK_ALL_PLAYED, 5, getString(LR.string.podcastgpt_mark_all_played))
+            add(0, MENU_PODCAST_SETTINGS, 6, getString(LR.string.podcast_settings))
+            add(0, MENU_SHARE, 7, getString(LR.string.share))
+            add(0, MENU_UNSUBSCRIBE, 8, getString(LR.string.podcastgpt_unsubscribe))
+        }
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_PLAY_ALL_UNFINISHED -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.unfinishedEpisodes(podcast)
+                    if (episodes.isEmpty()) {
+                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    } else {
+                        viewModel.playUnfinishedOldestFirst(episodes)
+                    }
+                }
+
+                MENU_QUEUE_UNFINISHED, MENU_PLAY_OLDEST -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.unfinishedEpisodes(podcast)
+                    if (episodes.isEmpty()) {
+                        showSnackBar(getString(LR.string.podcastgpt_no_unfinished))
+                    } else if (item.itemId == MENU_PLAY_OLDEST) {
+                        viewModel.playOldestUnfinished(episodes)
+                    } else {
+                        val added = viewModel.addUnfinishedToUpNext(episodes)
+                        showSnackBar(
+                            if (added == 0) {
+                                getString(LR.string.podcast_player_queue_none)
+                            } else {
+                                getString(LR.string.podcast_player_queued_count, added)
+                            },
+                        )
+                    }
+                }
+
+                MENU_DOWNLOAD_ALL -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.episodesForOffline(podcast)
+                    if (episodes.isEmpty()) {
+                        showSnackBar(getString(LR.string.podcast_player_download_all_nothing))
+                    } else {
+                        ConfirmationDialog()
+                            .setTitle(getString(LR.string.podcast_player_download_all_title))
+                            .setSummary(getString(LR.string.podcast_player_download_all_warning, episodes.size))
+                            .setIconId(IR.drawable.ic_download)
+                            .setButtonType(
+                                ConfirmationDialog.ButtonType.Normal(
+                                    getString(LR.string.download_warning_button, episodes.size),
+                                ),
+                            )
+                            .setOnConfirm { viewModel.downloadAllForOffline(episodes) }
+                            .show(parentFragmentManager, "podcast_player_download_all")
+                    }
+                }
+
+                MENU_MARK_ALL_PLAYED -> viewLifecycleOwner.lifecycleScope.launch {
+                    val episodes = viewModel.episodesNotPlayed(podcast)
+                    if (episodes.isNotEmpty()) {
+                        val label = if (episodes.size == 1) {
+                            getString(LR.string.mark_as_played_singular)
+                        } else {
+                            getString(LR.string.mark_as_played_plural, episodes.size)
+                        }
+                        ConfirmationDialog()
+                            .setTitle(getString(LR.string.are_you_sure))
+                            .setButtonType(ConfirmationDialog.ButtonType.Danger(label))
+                            .setOnConfirm { viewModel.markEpisodesPlayed(episodes) }
+                            .show(parentFragmentManager, "podcastgpt_mark_played")
+                    }
+                }
+
+                MENU_PODCAST_SETTINGS -> {
+                    val fragment = PodcastSettingsFragment.newInstance(
+                        uuid = podcast.uuid,
+                        title = podcast.title,
+                        darkTint = podcast.darkThemeTint(),
+                        lightTint = podcast.lightThemeTint(),
+                    )
+                    (activity as FragmentHostListener).addFragment(fragment)
+                }
+
+                MENU_SHARE -> {
+                    if (podcast.canShare) {
+                        SharePodcastFragment.newInstance(podcast, SourceView.PODCAST_LIST)
+                            .show(parentFragmentManager, "podcastgpt_share")
+                    } else {
+                        showSnackBar(getString(LR.string.sharing_is_not_available_for_private_podcasts))
+                    }
+                }
+
+                MENU_UNSUBSCRIBE -> viewLifecycleOwner.lifecycleScope.launch {
+                    val downloaded = viewModel.downloadedEpisodeCount(podcast)
+                    val title = when (downloaded) {
+                        0 -> getString(LR.string.are_you_sure)
+                        1 -> getString(LR.string.podcast_unsubscribe_downloaded_file_singular)
+                        else -> getString(LR.string.podcast_unsubscribe_downloaded_file_plural, downloaded)
+                    }
+                    ConfirmationDialog()
+                        .setTitle(title)
+                        .setSummary(getString(LR.string.podcast_unsubscribe_warning))
+                        .setButtonType(ConfirmationDialog.ButtonType.Danger(getString(LR.string.podcastgpt_unsubscribe)))
+                        .setOnConfirm { viewModel.unsubscribe(podcast) }
+                        .show(parentFragmentManager, "podcastgpt_unsubscribe")
+                }
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun showSnackBar(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
     }
 
     override fun onFolderClick(folderUuid: String, isUserInitiated: Boolean) {
@@ -722,53 +782,19 @@ class PodcastsFragment :
         binding.tooltipComposeView.disposeComposition()
         viewModel.onTooltipClosed()
     }
+}
 
-    private fun openAd(ad: BlazeAd) {
-        trackAdTapped(ad)
-        runCatching {
-            val intent = Intent(Intent.ACTION_VIEW, ad.url.toUri())
-            startActivity(intent)
-        }.onFailure { LogBuffer.e("Ads", it, "Failed to open an ad: ${ad.id}") }
-    }
-
-    private fun openAdReportFlow(ad: BlazeAd) {
-        if (parentFragmentManager.findFragmentByTag("ad_report") == null) {
-            AdReportFragment
-                .newInstance(ad, podcastColors = null)
-                .show(parentFragmentManager, "ad_report")
-        }
-    }
-
-    private fun trackAdImpression(ad: BlazeAd) {
-        eventHorizon.track(
-            BannerAdImpressionEvent(
-                id = ad.id,
-                location = ad.location.analyticsValue,
-            ),
-        )
-    }
-
-    fun trackAdTapped(ad: BlazeAd) {
-        eventHorizon.track(
-            BannerAdTappedEvent(
-                id = ad.id,
-                location = ad.location.analyticsValue,
-            ),
-        )
-    }
-
-    inner class SpaceItemDecoration : RecyclerView.ItemDecoration() {
-        private val gridItemPadding = resources.getDimensionPixelSize(VR.dimen.grid_item_padding)
-        override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-            when (settings.podcastGridLayout.value) {
-                PodcastGridLayoutType.LARGE_ARTWORK, PodcastGridLayoutType.SMALL_ARTWORK -> {
-                    outRect.set(gridItemPadding, gridItemPadding, gridItemPadding, gridItemPadding)
-                }
-
-                PodcastGridLayoutType.LIST_VIEW -> Unit
-            }
-        }
-    }
+@Composable
+private fun NoUnfinishedPodcastsBanner(
+    onClickButton: () -> Unit,
+) {
+    NoContentBanner(
+        title = stringResource(LR.string.no_unfinished_podcasts),
+        body = stringResource(LR.string.no_unfinished_podcasts_summary),
+        iconResourceId = IR.drawable.ic_podcasts,
+        primaryButtonText = stringResource(LR.string.show_all_podcasts),
+        onPrimaryButtonClick = onClickButton,
+    )
 }
 
 @Composable

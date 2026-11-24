@@ -12,6 +12,12 @@
             android:summary="@string/settings_import_url_summary"
             android:title="@string/settings_import_url" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/podcast_player_backup_preview_category" >
+        <Preference
+            android:key="previewPodcastAddictBackup"
+            android:summary="@string/podcast_player_backup_preview_summary"
+            android:title="@string/podcast_player_backup_preview_choose" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_export_subscriptions" >
         <Preference
             android:key="exportSendEmail"

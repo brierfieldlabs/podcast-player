@@ -304,7 +304,7 @@ class SubscribeManager @Inject constructor(
         podcast.autoDownloadStatus = if (foundEpisodes && allAutoDownloading) Podcast.AUTO_DOWNLOAD_NEW_EPISODES else Podcast.AUTO_DOWNLOAD_OFF
         podcast.isShowNotifications = foundEpisodes && allSendingNotifications
         podcast.sortPosition = count
-        podcast.episodesSortType = if (podcast.episodesSortType.ordinal == 0) EpisodesSortType.EPISODES_SORT_BY_DATE_DESC else podcast.episodesSortType
+        podcast.episodesSortType = if (podcast.episodesSortType.ordinal == 0) EpisodesSortType.EPISODES_SORT_BY_DATE_ASC else podcast.episodesSortType
         podcast.episodes.firstOrNull()?.let { episode ->
             podcast.latestEpisodeUuid = episode.uuid
             podcast.latestEpisodeDate = episode.publishedDate

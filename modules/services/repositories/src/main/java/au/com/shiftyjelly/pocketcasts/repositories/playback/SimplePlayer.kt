@@ -41,6 +41,7 @@ import timber.log.Timber
 
 class SimplePlayer(
     private val settings: Settings,
+    private val audioPreferences: PodcastPlayerAudioPreferences,
     private val statsManager: StatsManager,
     private val playbackStatsCollector: PlaybackStatsCollector,
     private val context: Context,
@@ -414,6 +415,7 @@ class SimplePlayer(
             context = context,
             statsManager = statsManager,
             boostVolume = playbackEffects?.isVolumeBoosted ?: false,
+            audioPreferences = audioPreferences,
             fingerprintPcmTap = fingerprintPcmTap,
             fingerprintTapEnabled = {
                 FeatureFlag.isEnabled(Feature.SYNCED_TRANSCRIPTS) &&
@@ -468,6 +470,10 @@ class SimplePlayer(
         if (videoWidth != 0 && videoHeight != 0) {
             videoChangedListener.videoSizeChanged(videoWidth, videoHeight, 1f)
         }
+    }
+
+    fun refreshPodcastPlayerEqualizer() {
+        renderersFactory?.refreshEqualizer()
     }
 
     private fun setPlayerEffects() {

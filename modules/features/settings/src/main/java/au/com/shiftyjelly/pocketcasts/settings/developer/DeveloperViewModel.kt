@@ -211,10 +211,6 @@ class DeveloperViewModel
         settings.notificationsPromptAcknowledged.set(false, updateModifiedAt = false)
     }
 
-    fun resetEpisodeChatSurvey() {
-        settings.episodeChatSurveySeen.set(false, updateModifiedAt = false)
-    }
-
     fun showAppReviewPrompt() {
         viewModelScope.launch {
             val reviewInfo = reviewManager.requestReview()
