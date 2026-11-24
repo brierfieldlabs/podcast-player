@@ -24,6 +24,7 @@ class PodcastAddictBackupInspector @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     data class LocalFeed(
+        val uuid: String,
         val url: String,
         val episodes: List<LocalEpisode>,
     )
@@ -83,6 +84,7 @@ class PodcastAddictBackupInspector @Inject constructor(
             val listeningHistoryCount: Int,
             val completedHistoryCount: Int,
             val localSubscribedFeedCount: Int,
+            val reviewedFeedUrls: Map<String, String>,
             val exactMatchedLocalFeeds: Int,
             val ambiguousFeedMatches: Int,
             val missingSubscriptions: Int,
@@ -101,6 +103,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         BackupTooLarge,
         UnreadableDatabase,
         MissingFeedUrls,
+        FeedLookupUnavailable,
     }
 
     suspend fun inspect(
@@ -117,7 +120,6 @@ class PodcastAddictBackupInspector @Inject constructor(
             if (copyResult != null) return@withContext Result.Rejected(copyResult)
 
             SQLiteDatabase.openDatabase(temp.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
-                val subscribedFeeds = localFeeds.map { it.url.trim() }.filter { it.isNotEmpty() }.toSet()
                 val podcasts = scanFeedCounts(database, localFeeds.groupingBy { it.url.trim() }.eachCount())
                 val episodeMatches = scanEpisodeMatches(database, localFeeds)
                 val statistics = scanStatistics(database)
@@ -158,7 +160,8 @@ class PodcastAddictBackupInspector @Inject constructor(
                     episodesWithPlaybackDate = playbackDateCount,
                     listeningHistoryCount = historyCount,
                     completedHistoryCount = completedCount,
-                    localSubscribedFeedCount = subscribedFeeds.size,
+                    localSubscribedFeedCount = localFeeds.size,
+                    reviewedFeedUrls = localFeeds.associate { it.uuid to it.url.trim() },
                     exactMatchedLocalFeeds = podcasts.exactMatches,
                     ambiguousFeedMatches = podcasts.ambiguousMatches,
                     missingSubscriptions = podcasts.missingFeedUrls.size,
@@ -364,6 +367,7 @@ class PodcastAddictBackupInspector @Inject constructor(
                 if (before != after) {
                     changes += PodcastAddictEpisodeChange(
                         uuid = target.uuid,
+                        podcastUuid = targets.single().uuid,
                         feedUrl = url,
                         enclosure = enclosure,
                         publicationDate = target.publicationDate,
@@ -425,7 +429,7 @@ class PodcastAddictBackupInspector @Inject constructor(
             missingFeedUrls = matchOccurrences.filter { (url, occurrences) ->
                 occurrences == 1 && url !in localFeeds
             }.keys.sorted(),
-            destinationOnlySubscriptions = localFeeds.keys.count { it.isNotEmpty() && it !in matchOccurrences },
+            destinationOnlySubscriptions = localFeeds.filterKeys { it.isNotEmpty() && it !in matchOccurrences }.values.sum(),
         )
     }
 

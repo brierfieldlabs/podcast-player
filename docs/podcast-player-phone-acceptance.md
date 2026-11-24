@@ -85,3 +85,5 @@ Applying migration to real account data still needs **separate approval**.
 - Record unmatched feeds/episodes, source flag verification, history limitations and discrepancies before declaring acceptance.
 
 For v1.3.1, use one Import backup button rather than the v1.3.0 action menu. Check automatic online subscription acquisition and refreshed review, automatic continuation after offline/paused readiness, timeout without episode writes, and a combined completion report including historical statistics. If missing feeds remain, verify they are reported and skipped. The earlier v1.3.0 APK still uses the original workflow.
+
+**Failed v1.3.1 acceptance (24 November):** source 609 subscriptions, one exact match and zero proposed changes. The website-vs-RSS field was wrong. Do not repeat v1.3.1 import. In the next trial start online, check real RSS matching coverage (or diagnose remaining aliases/unknowns), verify representative episode states and dismissed exclusions before approving the overwrite. A completed build alone is not migration acceptance.

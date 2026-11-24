@@ -27,7 +27,10 @@ class PodcastAddictEpisodeImporter @Inject constructor(
 ) {
     data class Applied(val changed: Int, val snapshot: File?)
 
-    suspend fun applyReviewedChanges(changes: List<PodcastAddictEpisodeChange>): Applied = withContext(Dispatchers.IO) {
+    suspend fun applyReviewedChanges(
+        changes: List<PodcastAddictEpisodeChange>,
+        reviewedFeedUrls: Map<String, String>,
+    ): Applied = withContext(Dispatchers.IO) {
         require(changes.map { it.uuid }.distinct().size == changes.size)
         require(changes.all { it.after.positionSeconds.isFinite() && it.after.positionSeconds >= 0 })
         val now = System.currentTimeMillis()
@@ -44,16 +47,21 @@ class PodcastAddictEpisodeImporter @Inject constructor(
             val dao = database.episodeDao()
             val episodes = dao.findByUuids(changes.map { it.uuid }).associateBy { it.uuid }
             val subscribedFeeds = database.podcastDao().findSubscribedNoOrder()
-            val feeds = subscribedFeeds.associateBy { it.uuid }
-            val feedOccurrences = subscribedFeeds.groupingBy { it.podcastUrl?.trim() }.eachCount()
+            check(subscribedFeeds.map { it.uuid }.toSet() == reviewedFeedUrls.keys) {
+                "Subscriptions changed; preview again"
+            }
+            val feedOccurrences = reviewedFeedUrls.values.groupingBy { it }.eachCount()
             val ambiguousEnclosures = mutableMapOf<String, Set<String>>()
             for (podcastUuid in episodes.values.map { it.podcastUuid }.distinct()) {
                 ambiguousEnclosures[podcastUuid] = dao.findAmbiguousEnclosures(podcastUuid).toSet()
             }
             val pending = changes.mapNotNull { change ->
                 val episode = checkNotNull(episodes[change.uuid]) { "Episode no longer available" }
-                val feed = feeds[episode.podcastUuid]
-                check(feed?.podcastUrl?.trim() == change.feedUrl && feedOccurrences[change.feedUrl] == 1) {
+                check(
+                    episode.podcastUuid == change.podcastUuid &&
+                        reviewedFeedUrls[episode.podcastUuid] == change.feedUrl &&
+                        feedOccurrences[change.feedUrl] == 1,
+                ) {
                     "Feed changed or became ambiguous; preview again"
                 }
                 check(

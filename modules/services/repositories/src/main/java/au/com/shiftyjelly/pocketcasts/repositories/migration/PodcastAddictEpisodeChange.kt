@@ -12,6 +12,7 @@ data class PodcastAddictEpisodeValues(
 /** In-memory preview record, never uploaded or logged. */
 data class PodcastAddictEpisodeChange(
     val uuid: String,
+    val podcastUuid: String,
     val feedUrl: String,
     val enclosure: String,
     val publicationDate: Long,

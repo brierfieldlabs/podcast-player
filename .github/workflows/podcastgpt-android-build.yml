@@ -37,7 +37,7 @@ jobs:
       - name: Run focused Podcast Addict migration regressions
         run: |
           ./gradlew :modules:services:repositories:testDebugUnitTest \
-            --tests '*PodcastAddictEpisodeStateTest' --tests '*SyncHistoryTaskTest' \
+            --tests '*PodcastAddictEpisodeStateTest' --tests '*PodcastAddictFeedUrlsTest' --tests '*SyncHistoryTaskTest' \
             :modules:features:settings:testDebugUnitTest --tests '*StatsViewModelTest' \
             --no-daemon --max-workers=2 \
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"

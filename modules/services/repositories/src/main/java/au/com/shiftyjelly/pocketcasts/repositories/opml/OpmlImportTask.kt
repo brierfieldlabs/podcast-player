@@ -21,10 +21,12 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictFeedUrls
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictMissingSubscriptions
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.notification.OnboardingNotificationType
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
+import au.com.shiftyjelly.pocketcasts.servers.ServiceManager
 import au.com.shiftyjelly.pocketcasts.servers.di.Downloads
 import au.com.shiftyjelly.pocketcasts.servers.refresh.ImportOpmlResponse
 import au.com.shiftyjelly.pocketcasts.servers.refresh.RefreshServiceManager
@@ -66,6 +68,7 @@ class OpmlImportTask @AssistedInject constructor(
     @Assisted parameters: WorkerParameters,
     private val podcastManager: PodcastManager,
     private val refreshServiceManager: RefreshServiceManager,
+    private val serviceManager: ServiceManager,
     @Downloads private val httpClient: Lazy<OkHttpClient>,
     private val notificationHelper: NotificationHelper,
     private val eventHorizon: EventHorizon,
@@ -161,12 +164,13 @@ class OpmlImportTask @AssistedInject constructor(
 
             val allUrls = OpmlUrlReader().readUrls(source)
             val urls = if (migrationFile != null) {
-                val existing = podcastManager.findSubscribedNoOrder().mapNotNull { it.podcastUrl?.trim() }.toSet()
+                val uuids = podcastManager.findSubscribedNoOrder().map { it.uuid }
+                val existing = checkNotNull(PodcastAddictFeedUrls.resolve(serviceManager, uuids)).values.toSet()
                 allUrls.filterNot { it in existing }
             } else {
                 allUrls
             }
-            if (urls.isNotEmpty()) processUrls(urls)
+            if (urls.isNotEmpty()) processUrls(urls, skipExisting = migrationFile != null)
             trackProcessed(urls.size)
 
             CoroutineScope(Dispatchers.Main).launch {
@@ -216,7 +220,7 @@ class OpmlImportTask @AssistedInject constructor(
         )
     }
 
-    private suspend fun processUrls(urls: List<String>) {
+    private suspend fun processUrls(urls: List<String>, skipExisting: Boolean) {
         val podcastCount = urls.size
         val initialDatabaseCount = podcastManager.countPodcastsBlocking()
 
@@ -228,7 +232,7 @@ class OpmlImportTask @AssistedInject constructor(
             // call the server with the feed urls to get the podcast uuids
             .mapNotNull { callServer(urls = it) }
             // use the podcast uuids to subscribe to the podcasts
-            .subscribeToPodcasts(podcastManager)
+            .subscribeToPodcasts(podcastManager, skipExisting)
             // update the notification progress
             .onEach { updateNotification(initialDatabaseCount, podcastCount) }
             .collectPollUuids()
@@ -240,7 +244,7 @@ class OpmlImportTask @AssistedInject constructor(
                 // poll the server with the create uuids to get the podcast uuids
                 .mapNotNull { pollServer(pollUuids = it) }
                 // use the podcast uuids to subscribe to the podcasts
-                .subscribeToPodcasts(podcastManager)
+                .subscribeToPodcasts(podcastManager, skipExisting)
                 // update the notification progress
                 .onEach { updateNotification(initialDatabaseCount, podcastCount) }
                 .collectPollUuids()
@@ -307,10 +311,17 @@ class OpmlImportTask @AssistedInject constructor(
     }
 }
 
-private fun Flow<ImportOpmlResponse>.subscribeToPodcasts(podcastManager: PodcastManager): Flow<ImportOpmlResponse> {
+private fun Flow<ImportOpmlResponse>.subscribeToPodcasts(
+    podcastManager: PodcastManager,
+    skipExisting: Boolean,
+): Flow<ImportOpmlResponse> {
     return onEach {
         // add podcast uuid to subscribe queue
-        it.uuids.forEach { uuid -> podcastManager.subscribeToPodcast(uuid, sync = true, shouldAutoDownload = false) }
+        it.uuids.forEach { uuid ->
+            if (!skipExisting || podcastManager.findPodcastByUuid(uuid)?.isSubscribed != true) {
+                podcastManager.subscribeToPodcast(uuid, sync = true, shouldAutoDownload = false)
+            }
+        }
     }
 }
 

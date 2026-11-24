@@ -1887,10 +1887,10 @@
     <string name="settings_version">Version %1$s (%2$s)</string>
     <string name="podcast_player_backup_preview_category">Podcast Addict backup</string>
     <string name="podcast_player_backup_preview_choose">Import a full backup</string>
-    <string name="podcast_player_backup_preview_summary">Select a .backup file, review the matches, then import subscriptions, listening progress and historical statistics together.</string>
-    <string name="podcast_player_backup_preview_busy">Checking the backup and matching RSS feeds. Your listening history will not be changed.</string>
+    <string name="podcast_player_backup_preview_summary">Connect to the internet, select a .backup file and review the matches before importing.</string>
+    <string name="podcast_player_backup_preview_busy">Checking the backup and retrieving RSS feed addresses. Your listening history will not be changed.</string>
     <string name="podcast_player_backup_preview_title">Podcast Addict backup preview</string>
-    <string name="podcast_player_backup_preview_results">Database readable.\nTotal podcast records: %1$d\nSubscribed feeds in backup: %2$d\nEpisode records: %3$d\nListening history records: %4$d\nEpisodes with resume positions: %5$d\nSubscribed feeds on this device: %6$d\nExact active-feed matches: %7$d\nAmbiguous feed matches: %8$d\nMissing subscriptions: %9$d\nDestination-only subscriptions (keep): %10$d</string>
+    <string name="podcast_player_backup_preview_results">Database readable.\nTotal podcast records: %1$d\nSubscribed feeds in backup: %2$d\nEpisode records: %3$d\nListening history records: %4$d\nEpisodes with resume positions: %5$d\nSubscribed feeds on this device: %6$d\nExact active-feed matches: %7$d\nAmbiguous feed matches: %8$d\nBackup feeds without exact RSS match: %9$d\nDestination subscriptions without exact RSS match (keep): %10$d</string>
     <string name="podcast_player_backup_preview_episodes">Exact episode matches: %1$d\nAmbiguous local episodes: %2$d\nUnmatched local episodes in shared feeds: %3$d\nDifferent resume positions: %4$d\nDifferent favourites: %5$d\nMatches with completion history: %6$d\nProposed mark played: %7$d\nProposed mark unplayed: %8$d\nProposed mark in progress: %9$d\nUnresolved current state: %10$d\nSource episodes without exact match in unique shared feeds: %11$d\nEpisodes with proposed changes: %12$d\nDifferent latest listening dates: %13$d\nLoaded or queued episodes skipped: %14$d</string>
     <string name="podcast_player_backup_preview_stats_totals">Days with source playback statistics: %1$d\nRecorded wall time (minutes): %2$d\nContent time (minutes): %3$d\nSpeed time saved (minutes): %4$d\nSilence skipped (minutes): %5$d</string>
     <string name="podcast_player_backup_stats_additional">Episode-day play count (not unique episodes): %1$d\nIntro skipped (minutes): %2$d\nOutro skipped (minutes): %3$d\nForward skipped (minutes): %4$d\nAds skipped (minutes): %5$d\nMuted chapters (minutes): %6$d\nLive stream time (minutes): %7$d</string>
@@ -1912,6 +1912,7 @@
     <string name="podcast_player_backup_import_busy">A subscription import is already running or queued. Let it finish before continuing.</string>
     <string name="podcast_player_backup_apply_busy">Saving previous episode values and applying the reviewed changes…</string>
     <string name="podcast_player_backup_apply_failed">Episode import did not complete. Ensure playback is paused, the device is offline, and refresh or subscription import has finished. Preview again before retrying.</string>
+    <string name="podcast_player_backup_feed_lookup_failed">Could not retrieve RSS addresses for all subscriptions. Check your connection and retry. No data was changed. Do not import until the feed lookup succeeds.</string>
     <string name="podcast_player_backup_preview_rejected">This backup could not be safely previewed. Check that it is a complete, readable Podcast Addict .backup file. No data was changed.</string>
     <string name="podcast_player_backup_preview_no_feeds">This backup has no readable RSS feed URLs, so subscriptions cannot be matched. No data was changed.</string>
     <string name="podcast_player_backup_preview_too_large">The backup database is too large to inspect safely on this device. No data was changed.</string>

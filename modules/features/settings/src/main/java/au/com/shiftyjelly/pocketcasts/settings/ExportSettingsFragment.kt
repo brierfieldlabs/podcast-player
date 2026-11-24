@@ -20,6 +20,7 @@ import au.com.shiftyjelly.pocketcasts.models.to.RefreshState
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictEpisodeImporter
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictFeedUrls
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictStatisticsStore
 import au.com.shiftyjelly.pocketcasts.repositories.opml.OpmlImportTask
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
@@ -183,10 +184,13 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                 val subscribedFeeds = withContext(Dispatchers.IO) {
                     val queued = playbackManager.upNextQueue.allEpisodes.map { it.uuid }.toMutableSet()
                     playbackManager.getCurrentEpisode()?.uuid?.let { queued.add(it) }
-                    podcastManager.findSubscribedNoOrder().mapNotNull { podcast ->
-                        val url = podcast.podcastUrl ?: return@mapNotNull null
+                    val podcasts = podcastManager.findSubscribedNoOrder()
+                    val urls = PodcastAddictFeedUrls.resolve(serviceManager, podcasts.map { it.uuid })
+                        ?: return@withContext null
+                    podcasts.map { podcast ->
                         PodcastAddictBackupInspector.LocalFeed(
-                            url = url,
+                            uuid = podcast.uuid,
+                            url = urls.getValue(podcast.uuid),
                             episodes = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast).map { episode ->
                                 PodcastAddictBackupInspector.LocalEpisode(
                                     uuid = episode.uuid,
@@ -203,7 +207,11 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         )
                     }
                 }
-                podcastAddictInspector.inspect(uri, subscribedFeeds)
+                if (subscribedFeeds == null) {
+                    PodcastAddictBackupInspector.Result.Rejected(PodcastAddictBackupInspector.Reason.FeedLookupUnavailable)
+                } else {
+                    podcastAddictInspector.inspect(uri, subscribedFeeds)
+                }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -255,6 +263,9 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                 is PodcastAddictBackupInspector.Result.Rejected -> when (result.reason) {
                     PodcastAddictBackupInspector.Reason.MissingFeedUrls ->
                         getString(LR.string.podcast_player_backup_preview_no_feeds)
+
+                    PodcastAddictBackupInspector.Reason.FeedLookupUnavailable ->
+                        getString(LR.string.podcast_player_backup_feed_lookup_failed)
 
                     PodcastAddictBackupInspector.Reason.BackupTooLarge ->
                         getString(LR.string.podcast_player_backup_preview_too_large)
@@ -341,7 +352,10 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         return@launch
                     }
                     progress.setMessage(getString(LR.string.podcast_player_backup_apply_busy))
-                    updated = podcastAddictImporter.applyReviewedChanges(result.episodes.changes).changed
+                    updated = podcastAddictImporter.applyReviewedChanges(
+                        result.episodes.changes,
+                        result.reviewedFeedUrls,
+                    ).changed
                 }
 
                 val statistics = result.statistics
