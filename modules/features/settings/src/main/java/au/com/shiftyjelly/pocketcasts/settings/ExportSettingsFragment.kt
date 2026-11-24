@@ -176,6 +176,7 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                                     publicationDate = episode.publishedDate.time,
                                     positionSeconds = episode.playedUpTo,
                                     favourite = episode.isStarred,
+                                    playingStatus = episode.playingStatus,
                                 )
                             },
                         )
@@ -206,6 +207,8 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         result.localSubscribedFeedCount,
                         result.exactMatchedLocalFeeds,
                         result.ambiguousFeedMatches,
+                        result.missingSubscriptions,
+                        result.destinationOnlySubscriptions,
                     ) + "\n\n" + getString(
                         LR.string.podcast_player_backup_preview_episodes,
                         result.episodes.exact,
@@ -214,8 +217,22 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         result.episodes.resumeDifferences,
                         result.episodes.favouriteDifferences,
                         result.episodes.completionEvidence,
+                        result.episodes.markPlayed,
+                        result.episodes.markUnplayed,
+                        result.episodes.markInProgress,
+                        result.episodes.unresolvedState,
+                        result.episodes.sourceEpisodesWithoutExactMatch,
                     ) + "\n" + (
-                        result.statisticsDays?.let { getString(LR.string.podcast_player_backup_preview_stats_days, it) }
+                        result.statistics?.let {
+                            getString(
+                                LR.string.podcast_player_backup_preview_stats_totals,
+                                it.days,
+                                it.wallListeningMs / 60000,
+                                it.contentListeningMs / 60000,
+                                it.speedSavedMs / 60000,
+                                it.silenceSavedMs / 60000,
+                            )
+                        }
                             ?: getString(LR.string.podcast_player_backup_preview_stats_unavailable)
                         ) + "\n\n" + getString(LR.string.podcast_player_backup_preview_disclaimer)
                 }

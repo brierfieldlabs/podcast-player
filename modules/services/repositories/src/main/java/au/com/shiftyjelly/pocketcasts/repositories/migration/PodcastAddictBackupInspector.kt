@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import android.net.Uri
+import au.com.shiftyjelly.pocketcasts.models.type.EpisodePlayingStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
@@ -32,6 +33,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         val publicationDate: Long,
         val positionSeconds: Double,
         val favourite: Boolean,
+        val playingStatus: EpisodePlayingStatus,
     )
 
     data class EpisodeMatches(
@@ -41,6 +43,19 @@ class PodcastAddictBackupInspector @Inject constructor(
         val resumeDifferences: Int,
         val favouriteDifferences: Int,
         val completionEvidence: Int,
+        val markPlayed: Int,
+        val markUnplayed: Int,
+        val markInProgress: Int,
+        val unresolvedState: Int,
+        val sourceEpisodesWithoutExactMatch: Int,
+    )
+
+    data class SourceStatistics(
+        val days: Int,
+        val wallListeningMs: Long,
+        val contentListeningMs: Long,
+        val speedSavedMs: Long,
+        val silenceSavedMs: Long,
     )
 
     sealed interface Result {
@@ -56,8 +71,10 @@ class PodcastAddictBackupInspector @Inject constructor(
             val localSubscribedFeedCount: Int,
             val exactMatchedLocalFeeds: Int,
             val ambiguousFeedMatches: Int,
+            val missingSubscriptions: Int,
+            val destinationOnlySubscriptions: Int,
             val episodes: EpisodeMatches,
-            val statisticsDays: Int?,
+            val statistics: SourceStatistics?,
         ) : Result
 
         data class Rejected(val reason: Reason) : Result
@@ -86,18 +103,21 @@ class PodcastAddictBackupInspector @Inject constructor(
 
             SQLiteDatabase.openDatabase(temp.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { database ->
                 val subscribedFeeds = localFeeds.map { it.url.trim() }.filter { it.isNotEmpty() }.toSet()
-                val podcasts = scanFeedCounts(database, subscribedFeeds)
+                val podcasts = scanFeedCounts(database, localFeeds.groupingBy { it.url.trim() }.eachCount())
                 val episodeMatches = scanEpisodeMatches(database, localFeeds)
-                val statisticsDays = database.rawQuery(
+                val statistics = database.rawQuery(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='playback_stats_day'",
                     null,
                 ).use { it.moveToFirst() }.let { exists ->
                     if (exists) {
-                        database.rawQuery("SELECT COUNT(*) FROM playback_stats_day NOT INDEXED", null)
-                            .use {
-                                it.moveToFirst()
-                                it.getInt(0)
-                            }
+                        database.rawQuery(
+                            "SELECT COUNT(*), SUM(wall_played_ms), SUM(content_played_ms), " +
+                                "SUM(playback_speed_saved_ms), SUM(skipped_silence_ms) FROM playback_stats_day NOT INDEXED",
+                            null,
+                        ).use {
+                            it.moveToFirst()
+                            SourceStatistics(it.getInt(0), it.getLong(1), it.getLong(2), it.getLong(3), it.getLong(4))
+                        }
                     } else {
                         null
                     }
@@ -142,8 +162,10 @@ class PodcastAddictBackupInspector @Inject constructor(
                     localSubscribedFeedCount = subscribedFeeds.size,
                     exactMatchedLocalFeeds = podcasts.exactMatches,
                     ambiguousFeedMatches = podcasts.ambiguousMatches,
+                    missingSubscriptions = podcasts.missingSubscriptions,
+                    destinationOnlySubscriptions = podcasts.destinationOnlySubscriptions,
                     episodes = episodeMatches,
-                    statisticsDays = statisticsDays,
+                    statistics = statistics,
                 )
             }
         } catch (_: SQLiteException) {
@@ -160,8 +182,9 @@ class PodcastAddictBackupInspector @Inject constructor(
     private data class SourceEpisode(
         val id: Long,
         val publicationDate: Long,
-        val positionMs: Long,
-        val favourite: Boolean,
+        val positionMs: Long?,
+        val favourite: Boolean?,
+        val seenStatus: Int?,
     )
 
     /**
@@ -188,18 +211,26 @@ class PodcastAddictBackupInspector @Inject constructor(
                     .toSet()
             }
         }
+        var sourceEpisodeCount = 0
         val sourceEpisodes = mutableMapOf<Pair<Long, String>, MutableList<SourceEpisode>>()
         database.rawQuery(
             "SELECT podcast_id, download_url, _id, publication_date, position_to_resume, " +
-                "favorite FROM episodes NOT INDEXED",
+                "favorite, seen_status FROM episodes NOT INDEXED",
             null,
         ).use { rows ->
             while (rows.moveToNext()) {
                 val feedId = rows.getLong(0)
                 val enclosures = targetEnclosures[feedId] ?: continue
+                sourceEpisodeCount++
                 val enclosure = rows.getString(1)?.trim().orEmpty()
                 if (enclosure.isEmpty() || enclosure !in enclosures) continue
-                val source = SourceEpisode(rows.getLong(2), rows.getLong(3), rows.getLong(4), rows.getInt(5) == 1)
+                val source = SourceEpisode(
+                    rows.getLong(2),
+                    rows.getLong(3),
+                    if (rows.isNull(4)) null else rows.getLong(4),
+                    if (rows.isNull(5) || rows.getInt(5) !in 0..1) null else rows.getInt(5) == 1,
+                    if (rows.isNull(6)) null else rows.getInt(6),
+                )
                 sourceEpisodes.getOrPut(feedId to enclosure) { mutableListOf() }.add(source)
             }
         }
@@ -216,6 +247,10 @@ class PodcastAddictBackupInspector @Inject constructor(
         var resumeDifferences = 0
         var favouriteDifferences = 0
         var completionEvidence = 0
+        var markPlayed = 0
+        var markUnplayed = 0
+        var markInProgress = 0
+        var unresolvedState = 0
         for ((url, ids) in sourceFeeds) {
             val targets = targetFeeds[url] ?: continue
             if (ids.size != 1 || targets.size != 1) {
@@ -244,12 +279,27 @@ class PodcastAddictBackupInspector @Inject constructor(
                     continue
                 }
                 exact++
-                if (kotlin.math.abs(source.positionMs / 1000.0 - target.positionSeconds) >= 1.0) resumeDifferences++
-                if (source.favourite != target.favourite) favouriteDifferences++
+                if (
+                    source.positionMs != null && source.positionMs >= 0 &&
+                    kotlin.math.abs(source.positionMs / 1000.0 - target.positionSeconds) >= 1.0
+                ) {
+                    resumeDifferences++
+                }
+                if (source.favourite != null && source.favourite != target.favourite) favouriteDifferences++
                 if (source.id in completedIds) completionEvidence++
+                when (PodcastAddictEpisodeState.propose(source.seenStatus, source.positionMs)) {
+                    null -> unresolvedState++
+                    target.playingStatus -> Unit
+                    EpisodePlayingStatus.COMPLETED -> markPlayed++
+                    EpisodePlayingStatus.NOT_PLAYED -> markUnplayed++
+                    EpisodePlayingStatus.IN_PROGRESS -> markInProgress++
+                }
             }
         }
-        return EpisodeMatches(exact, ambiguous, unmatched, resumeDifferences, favouriteDifferences, completionEvidence)
+        return EpisodeMatches(
+            exact, ambiguous, unmatched, resumeDifferences, favouriteDifferences, completionEvidence,
+            markPlayed, markUnplayed, markInProgress, unresolvedState, sourceEpisodeCount - exact,
+        )
     }
 
     private data class FeedCounts(
@@ -258,12 +308,14 @@ class PodcastAddictBackupInspector @Inject constructor(
         val subscribedFeedCount: Int,
         val exactMatches: Int,
         val ambiguousMatches: Int,
+        val missingSubscriptions: Int,
+        val destinationOnlySubscriptions: Int,
     )
 
     /** Exact RSS URL comparisons only. Never infer matches from podcast titles. */
     private fun scanFeedCounts(
         database: SQLiteDatabase,
-        localFeeds: Set<String>,
+        localFeeds: Map<String, Int>,
     ): FeedCounts {
         var podcasts = 0
         var feeds = 0
@@ -278,7 +330,7 @@ class PodcastAddictBackupInspector @Inject constructor(
                         feeds++
                         if (!rows.isNull(1) && rows.getInt(1) == 1) {
                             subscribedFeeds++
-                            if (url in localFeeds) matchOccurrences[url] = (matchOccurrences[url] ?: 0) + 1
+                            matchOccurrences[url] = (matchOccurrences[url] ?: 0) + 1
                         }
                     }
                 }
@@ -288,8 +340,12 @@ class PodcastAddictBackupInspector @Inject constructor(
             podcastCount = podcasts,
             feedCount = feeds,
             subscribedFeedCount = subscribedFeeds,
-            exactMatches = matchOccurrences.count { (_, occurrences) -> occurrences == 1 },
-            ambiguousMatches = matchOccurrences.count { (_, occurrences) -> occurrences > 1 },
+            exactMatches = matchOccurrences.count { (url, occurrences) -> occurrences == 1 && localFeeds[url] == 1 },
+            ambiguousMatches = matchOccurrences.count { (url, occurrences) ->
+                occurrences > 1 || (localFeeds[url] ?: 0) > 1
+            },
+            missingSubscriptions = matchOccurrences.count { (url, occurrences) -> occurrences == 1 && url !in localFeeds },
+            destinationOnlySubscriptions = localFeeds.keys.count { it.isNotEmpty() && it !in matchOccurrences },
         )
     }
 
