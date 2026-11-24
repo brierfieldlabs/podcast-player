@@ -36,9 +36,9 @@ jobs:
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
       - name: Run focused Podcast Addict migration regressions
         run: |
-          ./gradlew :modules:services:repositories:testDebugProdUnitTest \
+          ./gradlew :modules:services:repositories:testDebugUnitTest \
             --tests '*PodcastAddictEpisodeStateTest' --tests '*SyncHistoryTaskTest' \
-            :modules:features:settings:testDebugProdUnitTest --tests '*StatsViewModelTest' \
+            :modules:features:settings:testDebugUnitTest --tests '*StatsViewModelTest' \
             --no-daemon --max-workers=2 \
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
       - name: Assemble debugProd APK
