@@ -5,6 +5,7 @@ import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
 import au.com.shiftyjelly.pocketcasts.models.to.HistorySyncResponse
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
@@ -49,8 +50,20 @@ class SyncHistoryTaskTest {
 
         assertEquals(Result.success(), result)
         verifyBlocking(historyManager) { processServerResponse(response, updateServerModified = true) }
-        verify(episodeManager).markPlaybackHistorySyncedBlocking()
+        verifyBlocking(episodeManager) { markPlaybackHistorySynced(emptyList()) }
         verify(episodeManager, never()).clearEpisodePlaybackInteractionDatesBeforeBlocking(any())
+    }
+
+    @Test
+    fun `acknowledges only sent history and retries a full batch`() {
+        val episodes = List(1000) { index ->
+            PodcastEpisode(uuid = "episode-$index", publishedDate = Date(1000), lastPlaybackInteraction = 2000L)
+        }
+        whenever(episodeManager.findEpisodesForHistorySyncBlocking()) doReturn episodes
+        givenServerResponse { HistorySyncResponse(serverModified = 10, lastCleared = 0, changes = emptyList()) }
+
+        assertEquals(Result.retry(), runTask())
+        verifyBlocking(episodeManager) { markPlaybackHistorySynced(episodes) }
     }
 
     @Test
@@ -73,7 +86,7 @@ class SyncHistoryTaskTest {
 
         assertEquals(Result.success(), result)
         verifyBlocking(historyManager, never()) { processServerResponse(any(), any()) }
-        verify(episodeManager, never()).markPlaybackHistorySyncedBlocking()
+        verifyBlocking(episodeManager, never()) { markPlaybackHistorySynced(any()) }
     }
 
     @Test
@@ -83,7 +96,7 @@ class SyncHistoryTaskTest {
         val result = runTask()
 
         assertEquals(Result.failure(), result)
-        verify(episodeManager, never()).markPlaybackHistorySyncedBlocking()
+        verifyBlocking(episodeManager, never()) { markPlaybackHistorySynced(any()) }
     }
 
     @Test
@@ -93,7 +106,7 @@ class SyncHistoryTaskTest {
         val result = runTask()
 
         assertEquals(Result.failure(), result)
-        verify(episodeManager, never()).markPlaybackHistorySyncedBlocking()
+        verifyBlocking(episodeManager, never()) { markPlaybackHistorySynced(any()) }
     }
 
     private fun givenServerResponse(answer: suspend () -> HistorySyncResponse) {

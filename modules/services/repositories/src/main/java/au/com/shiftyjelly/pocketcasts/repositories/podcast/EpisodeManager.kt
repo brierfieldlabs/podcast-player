@@ -93,7 +93,7 @@ interface EpisodeManager {
     fun clearEpisodePlaybackInteractionDatesBeforeBlocking(lastCleared: Date)
     suspend fun clearAllEpisodeHistory()
     suspend fun clearEpisodeHistory(episodes: List<PodcastEpisode>)
-    fun markPlaybackHistorySyncedBlocking()
+    suspend fun markPlaybackHistorySynced(episodes: List<PodcastEpisode>)
 
     /** Remove methods  */
     suspend fun deleteAll(sourceView: SourceView)

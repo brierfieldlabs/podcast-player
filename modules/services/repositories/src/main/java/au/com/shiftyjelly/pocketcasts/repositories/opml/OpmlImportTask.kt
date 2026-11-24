@@ -19,6 +19,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictMissingSubscriptions
 import au.com.shiftyjelly.pocketcasts.repositories.notification.NotificationHelper
 import au.com.shiftyjelly.pocketcasts.repositories.notification.OnboardingNotificationType
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
@@ -33,6 +34,7 @@ import com.automattic.eventhorizon.OpmlImportStartedEvent
 import dagger.Lazy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -69,6 +71,8 @@ class OpmlImportTask @AssistedInject constructor(
     companion object {
         private const val INPUT_URI = "INPUT_URI"
         private const val INPUT_URL = "INPUT_URL"
+        private const val INPUT_MIGRATION_FILE = "INPUT_MIGRATION_FILE"
+        private const val MIGRATION_FILE_PREFIX = "podcast-addict-missing-"
         private const val WORKER_TAG = "OpmlImportTask.Tag"
 
         fun run(uri: Uri, context: Context) {
@@ -79,6 +83,28 @@ class OpmlImportTask @AssistedInject constructor(
         fun run(url: HttpUrl, context: Context) {
             val data = workDataOf(INPUT_URL to url.toString())
             run(data, context)
+        }
+
+        /** Store a potentially large URL list in a private file, not WorkManager's 10 KB input. */
+        suspend fun runPodcastAddictMissingFeeds(feedUrls: List<String>, context: Context) {
+            val file = withContext(Dispatchers.IO) {
+                File.createTempFile(MIGRATION_FILE_PREFIX, ".opml", context.noBackupFilesDir).also { file ->
+                    try {
+                        file.outputStream().use { PodcastAddictMissingSubscriptions.writeOpml(feedUrls, it) }
+                    } catch (failure: Exception) {
+                        file.delete()
+                        throw failure
+                    }
+                }
+            }
+            try {
+                withContext(Dispatchers.Main) {
+                    run(workDataOf(INPUT_MIGRATION_FILE to file.name), context)
+                }
+            } catch (failure: Exception) {
+                file.delete()
+                throw failure
+            }
         }
 
         fun workInfos(context: Context) = WorkManager.getInstance(context).getWorkInfosByTagFlow(WORKER_TAG)
@@ -103,12 +129,17 @@ class OpmlImportTask @AssistedInject constructor(
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     override suspend fun doWork(): Result {
+        val migrationFile = inputData.getString(INPUT_MIGRATION_FILE)
+            ?.takeIf { it.startsWith(MIGRATION_FILE_PREFIX) && it.endsWith(".opml") && File(it).name == it }
+            ?.let { File(applicationContext.noBackupFilesDir, it) }
         try {
             onboardingNotificationManager.updateUserFeatureInteraction(OnboardingNotificationType.Import)
             eventHorizon.track(OpmlImportStartedEvent)
             val url = inputData.getString(INPUT_URL)?.toHttpUrlOrNull()
             val uri = inputData.getString(INPUT_URI)?.toUri()
             val source = when {
+                migrationFile != null -> migrationFile.source()
+
                 url != null -> createUrlOpmlSource(url)
 
                 uri != null -> createUriOpmlSource(uri)
@@ -122,8 +153,14 @@ class OpmlImportTask @AssistedInject constructor(
                 return Result.failure()
             }
 
-            val urls = OpmlUrlReader().readUrls(source)
-            processUrls(urls)
+            val allUrls = OpmlUrlReader().readUrls(source)
+            val urls = if (migrationFile != null) {
+                val existing = podcastManager.findSubscribedNoOrder().mapNotNull { it.podcastUrl?.trim() }.toSet()
+                allUrls.filterNot { it in existing }
+            } else {
+                allUrls
+            }
+            if (urls.isNotEmpty()) processUrls(urls)
             trackProcessed(urls.size)
 
             CoroutineScope(Dispatchers.Main).launch {
@@ -134,9 +171,16 @@ class OpmlImportTask @AssistedInject constructor(
             CoroutineScope(Dispatchers.Main).launch {
                 Toast.makeText(applicationContext, applicationContext.getString(LR.string.settings_import_opml_import_failed_message), Toast.LENGTH_LONG).show()
             }
-            LogBuffer.e(LogBuffer.TAG_BACKGROUND_TASKS, t, "OPML import failed.")
+            if (migrationFile != null) {
+                // Migration feed URLs may be private; do not log exception details.
+                LogBuffer.i(LogBuffer.TAG_BACKGROUND_TASKS, "Podcast Addict subscription import failed.")
+            } else {
+                LogBuffer.e(LogBuffer.TAG_BACKGROUND_TASKS, t, "OPML import failed.")
+            }
             trackFailure(reason = "unknown")
             return Result.failure()
+        } finally {
+            migrationFile?.delete()
         }
     }
 

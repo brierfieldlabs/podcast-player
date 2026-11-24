@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.room.withTransaction
 import au.com.shiftyjelly.pocketcasts.models.db.AppDatabase
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.models.to.RefreshState
+import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.utils.Network
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileOutputStream
@@ -14,13 +17,13 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
- * Staged importer. Not connected to a UI or scheduled job yet.
- * Caller must obtain approval of the preview and coordinate playback and sync.
+ * Apply a separately confirmed preview while offline and playback is stopped.
  */
-internal class PodcastAddictEpisodeImporter @Inject constructor(
+class PodcastAddictEpisodeImporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val database: AppDatabase,
     private val playbackManager: PlaybackManager,
+    private val settings: Settings,
 ) {
     data class Applied(val changed: Int, val snapshot: File?)
 
@@ -34,6 +37,8 @@ internal class PodcastAddictEpisodeImporter @Inject constructor(
                     (it.after.lastPlaybackDate ?: 0L) in 1..now
             },
         )
+        check(!Network.isConnected(context)) { "Disconnect before applying migration" }
+        check(settings.getRefreshState() != RefreshState.Refreshing) { "Wait for refresh to stop" }
         check(!playbackManager.isPlaying()) { "Pause playback and review again" }
         database.withTransaction {
             val dao = database.episodeDao()
@@ -41,6 +46,10 @@ internal class PodcastAddictEpisodeImporter @Inject constructor(
             val subscribedFeeds = database.podcastDao().findSubscribedNoOrder()
             val feeds = subscribedFeeds.associateBy { it.uuid }
             val feedOccurrences = subscribedFeeds.groupingBy { it.podcastUrl?.trim() }.eachCount()
+            val ambiguousEnclosures = mutableMapOf<String, Set<String>>()
+            for (podcastUuid in episodes.values.map { it.podcastUuid }.distinct()) {
+                ambiguousEnclosures[podcastUuid] = dao.findAmbiguousEnclosures(podcastUuid).toSet()
+            }
             val pending = changes.mapNotNull { change ->
                 val episode = checkNotNull(episodes[change.uuid]) { "Episode no longer available" }
                 val feed = feeds[episode.podcastUuid]
@@ -49,12 +58,14 @@ internal class PodcastAddictEpisodeImporter @Inject constructor(
                 }
                 check(
                     episode.downloadUrl?.trim() == change.enclosure &&
-                        episode.publishedDate.time == change.publicationDate,
+                        episode.publishedDate.time == change.publicationDate &&
+                        change.enclosure !in ambiguousEnclosures.getValue(episode.podcastUuid),
                 ) { "Episode identity changed; preview again" }
                 val current = episode.migrationValues()
                 if (current == change.after) return@mapNotNull null
                 check(current == change.before) { "Episode state changed; preview again" }
-                check(playbackManager.getCurrentEpisode()?.uuid != episode.uuid) { "Unload current episode before import" }
+                check(!playbackManager.upNextQueue.contains(episode.uuid)) { "Playlist changed; preview again" }
+                check(playbackManager.getCurrentEpisode()?.uuid != episode.uuid) { "Current episode changed; preview again" }
                 check(episode.duration <= 0 || change.after.positionSeconds <= episode.duration) {
                     "Resume position exceeds destination duration; review again"
                 }
@@ -84,6 +95,9 @@ internal class PodcastAddictEpisodeImporter @Inject constructor(
                     starredModified = if (after.favourite != episode.isStarred) modifiedAt else episode.starredModified,
                     lastStarredDate = if (after.favourite != episode.isStarred) modifiedAt else episode.lastStarredDate,
                 )
+            }
+            check(!Network.isConnected(context) && !playbackManager.isPlaying()) {
+                "Connection or playback changed; preview again"
             }
             dao.updateAllSyncFields(updated)
             for ((episode, after) in pending) {

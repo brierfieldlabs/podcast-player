@@ -849,8 +849,8 @@ class EpisodeManagerImpl @Inject constructor(
         episodeDao.clearEpisodePlaybackInteractions(episodes.map { it.uuid })
     }
 
-    override fun markPlaybackHistorySyncedBlocking() {
-        return episodeDao.markPlaybackHistorySyncedBlocking()
+    override suspend fun markPlaybackHistorySynced(episodes: List<PodcastEpisode>) {
+        episodeDao.markPlaybackHistorySynced(episodes)
     }
 
     /**

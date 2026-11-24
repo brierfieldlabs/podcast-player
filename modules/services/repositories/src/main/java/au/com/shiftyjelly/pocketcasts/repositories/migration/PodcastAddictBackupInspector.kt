@@ -37,6 +37,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         val playingStatus: EpisodePlayingStatus,
         val lastPlaybackDate: Long?,
         val durationSeconds: Double,
+        val queued: Boolean = false,
     )
 
     data class EpisodeMatches(
@@ -53,6 +54,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         val sourceEpisodesWithoutExactMatch: Int,
         val changes: List<PodcastAddictEpisodeChange>,
         val historyDifferences: Int,
+        val queuedDifferences: Int,
     )
 
     data class SourceStatistics(
@@ -267,6 +269,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         var markInProgress = 0
         var unresolvedState = 0
         var historyDifferences = 0
+        var queuedDifferences = 0
         val now = System.currentTimeMillis()
         val changes = mutableListOf<PodcastAddictEpisodeChange>()
         for ((url, ids) in sourceFeeds) {
@@ -313,6 +316,14 @@ class PodcastAddictBackupInspector @Inject constructor(
                 val historyDate = maxOf(source.playbackDate ?: 0L, lastListened[source.id] ?: 0L)
                     .takeIf { it in 1..now }
                     ?: target.lastPlaybackDate
+                val before = PodcastAddictEpisodeValues(
+                    target.playingStatus, target.positionSeconds, target.favourite, target.lastPlaybackDate,
+                )
+                val after = PodcastAddictEpisodeValues(proposed, positionSeconds, favourite, historyDate)
+                if (before != after && target.queued) {
+                    queuedDifferences++
+                    continue
+                }
                 if (positionSeconds != target.positionSeconds) resumeDifferences++
                 if (favourite != target.favourite) favouriteDifferences++
                 if (historyDate != target.lastPlaybackDate) historyDifferences++
@@ -322,10 +333,6 @@ class PodcastAddictBackupInspector @Inject constructor(
                     EpisodePlayingStatus.NOT_PLAYED -> markUnplayed++
                     EpisodePlayingStatus.IN_PROGRESS -> markInProgress++
                 }
-                val before = PodcastAddictEpisodeValues(
-                    target.playingStatus, target.positionSeconds, target.favourite, target.lastPlaybackDate,
-                )
-                val after = PodcastAddictEpisodeValues(proposed, positionSeconds, favourite, historyDate)
                 if (before != after) {
                     changes += PodcastAddictEpisodeChange(
                         uuid = target.uuid,
@@ -341,7 +348,7 @@ class PodcastAddictBackupInspector @Inject constructor(
         return EpisodeMatches(
             exact, ambiguous, unmatched, resumeDifferences, favouriteDifferences, completionEvidence,
             markPlayed, markUnplayed, markInProgress, unresolvedState, sourceEpisodeCount - exact,
-            changes, historyDifferences,
+            changes, historyDifferences, queuedDifferences,
         )
     }
 

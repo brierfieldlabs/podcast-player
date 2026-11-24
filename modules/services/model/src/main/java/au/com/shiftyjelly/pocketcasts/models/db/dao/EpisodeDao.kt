@@ -67,6 +67,15 @@ abstract class EpisodeDao {
     @Query("SELECT * FROM podcast_episodes WHERE playing_status = :episodePlayingStatus AND archived = :archived AND podcast_id = :podcastUuid")
     abstract fun findByEpisodePlayingAndArchiveStatusBlocking(podcastUuid: String, episodePlayingStatus: EpisodePlayingStatus, archived: Boolean): List<PodcastEpisode>
 
+    @Query(
+        """
+        SELECT TRIM(download_url) FROM podcast_episodes
+        WHERE podcast_id = :podcastUuid AND download_url IS NOT NULL
+        GROUP BY TRIM(download_url) HAVING COUNT(*) > 1
+        """,
+    )
+    abstract suspend fun findAmbiguousEnclosures(podcastUuid: String): List<String>
+
     @Query("SELECT uuid FROM podcast_episodes WHERE podcast_id = :podcastUuid")
     abstract suspend fun findByPodcastUuid(podcastUuid: String): List<String>
 
@@ -420,8 +429,22 @@ abstract class EpisodeDao {
     @Query("UPDATE podcast_episodes SET last_playback_interaction_date = 0, last_playback_interaction_sync_status = 2 WHERE uuid IN (:episodeUuids)")
     abstract suspend fun clearEpisodePlaybackInteractions(episodeUuids: List<String>)
 
-    @Query("UPDATE podcast_episodes SET last_playback_interaction_sync_status = 1")
-    abstract fun markPlaybackHistorySyncedBlocking()
+    @Query(
+        """
+        UPDATE podcast_episodes SET last_playback_interaction_sync_status = 1
+        WHERE uuid = :uuid AND last_playback_interaction_date = :interactionDate
+          AND last_playback_interaction_sync_status = :syncStatus
+        """,
+    )
+    protected abstract suspend fun markPlaybackHistoryRecordSynced(uuid: String, interactionDate: Long, syncStatus: Long)
+
+    @Transaction
+    open suspend fun markPlaybackHistorySynced(episodes: List<PodcastEpisode>) {
+        for (episode in episodes) {
+            val date = episode.lastPlaybackInteraction ?: continue
+            markPlaybackHistoryRecordSynced(episode.uuid, date, episode.lastPlaybackInteractionSyncStatus)
+        }
+    }
 
     @Query("SELECT COUNT(*) FROM podcast_episodes")
     abstract suspend fun count(): Int
