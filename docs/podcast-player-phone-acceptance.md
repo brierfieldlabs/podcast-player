@@ -1,3 +1,5 @@
+> **Frozen legacy trial:** v1.3.2 passed CI and corrected RSS matching on the phone. It is not the independent acceptance plan. No further Pocket Casts migration trial or live import is authorised. See [independent architecture](independent-architecture.md) for the next development direction.
+
 # Podcast Player phone acceptance (v1.3.2)
 
 **Status:** v1.2.4 phone accepted; v1.3.1 failed migration acceptance despite green CI; corrected v1.3.2 trial approved, awaiting fresh exact-head CI and device testing. This is a trial APK, not approval to release publicly,

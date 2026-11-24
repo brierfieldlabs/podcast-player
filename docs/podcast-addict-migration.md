@@ -1,3 +1,5 @@
+> **Superseded legacy path, 24 November 2026:** The owner will use Podcast Addict until independent Podcast Player is ready. Stop further Pocket Casts-specific migration work. See [independent architecture](independent-architecture.md) and issue #17 for the new direct-server migration scope. The notes below retain evidence and safeguards only; do not follow the legacy import steps.
+
 # Podcast Addict migration
 
 24 November 2026: owner accepted Podcast Player v1.2.4 on the phone and approved importer development. Podcast Addict is authoritative for confidently matched subscriptions and episode data, even when the destination is newer. The existing separate live-import approval remains in force. No automatic unsubscribe of destination-only feeds, destructive archive reset, or alteration of unmatched records is implied.

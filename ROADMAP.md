@@ -1,9 +1,16 @@
 # Podcast Player Roadmap
 
-Version in development: **v1.3.2**. User-facing releases use SemVer only, not
-`test`, `rc` or an automated APK per commit.
+Last legacy trial: **v1.3.2** (frozen). No independent version chosen yet. User-facing releases use SemVer only.
 
-## Accepted decisions
+## Active direction (24 November 2026)
+
+The owner approved the independent server direction and completed the 14 architectural decisions. See [canonical design and staged roadmap](docs/independent-architecture.md), issue #26. Podcast Addict remains daily authority. The legacy Pocket Casts-specific migration is stopped; #17 tracks direct import into our own catalogue. #18 tracks integrated web playback and administration. #19 release rules and existing feature requirements remain. No functional implementation, CT provisioning, build, deployment or real import authorised at this design checkpoint.
+
+**Next:** review design and authorise stage 1, a minimal direct-RSS catalogue and stable identity model with synthetic fixtures.
+
+The material below records the existing feature baseline and historical implementation/acceptance evidence. Where it describes Pocket Casts as the ongoing sync backend, the new approved product direction supersedes that requirement for future development only.
+
+## Existing feature baseline and legacy decisions
 
 - **Podcast Addict migration (#17, v1.3.2 trial):** resolve actual RSS addresses via the existing OPML export service, not website URLs; existing exact subscription/episode matches use Podcast Addict values, including resets to unplayed; add missing subscriptions after review, preserve ambiguous and destination-only items. Local statistics snapshot; no unsupported server totals replacement. Owner requested one Import backup action instead of separate options; add missing feeds first and re-review newly available matches, then apply reviewed episode changes offline and save statistics together. See [migration workflow and acceptance](docs/podcast-addict-migration.md). Trial build authorised 24 November 2026; no live import or public release authorised.
 
@@ -213,7 +220,7 @@ Version in development: **v1.3.2**. User-facing releases use SemVer only, not
   before switching your phone from PodcastGPT v1.1.0.
 - Preserve existing Podcast Addict data and the user's Pocket Casts login.
 
-## Development order
+## Historical development order (superseded by the independent roadmap)
 
 1. Source-only core playback actions and dismissal; verify the data rules.
 2. Complete per-podcast rolling download, new-title exclusion and tile
