@@ -5,6 +5,8 @@ import android.content.res.Resources
 import au.com.shiftyjelly.pocketcasts.models.to.DailyListenedTime
 import au.com.shiftyjelly.pocketcasts.models.to.StatsBundle
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictStatisticsStore
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.repositories.user.StatsManager
@@ -62,6 +64,9 @@ class StatsViewModelTest {
 
     @Mock
     private lateinit var inAppReviewHelper: InAppReviewHelper
+
+    @Mock
+    private lateinit var podcastAddictStatisticsStore: PodcastAddictStatisticsStore
 
     private lateinit var viewModel: StatsViewModel
 
@@ -156,6 +161,18 @@ class StatsViewModelTest {
         assertTrue(state.heatLevels.isEmpty())
     }
 
+    @Test
+    fun `imported totals are displayed separately from live stats`() = runTest {
+        initViewModel()
+        val source = PodcastAddictBackupInspector.SourceStatistics(10, 60000, 120000, 1000, 2000)
+        whenever(podcastAddictStatisticsStore.load()).thenReturn(source)
+        viewModel.loadStats()
+
+        val state = viewModel.state.value as StatsViewModel.State.Loaded
+        assertEquals(source, state.importedStatistics)
+        assertEquals(0L, state.totalListened)
+    }
+
     private suspend fun initViewModel(
         statsStartedAt: LocalDateTime = LocalDateTime.now().minusDays(8.toLong()),
         playedUpToSumInHours: Double = 3.0,
@@ -180,6 +197,7 @@ class StatsViewModelTest {
             application = application,
             ioDispatcher = UnconfinedTestDispatcher(),
             inAppReviewHelper = inAppReviewHelper,
+            podcastAddictStatisticsStore = podcastAddictStatisticsStore,
         )
     }
 }

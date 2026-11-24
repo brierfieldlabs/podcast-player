@@ -19,12 +19,14 @@ import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictEpisodeImporter
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictStatisticsStore
 import au.com.shiftyjelly.pocketcasts.repositories.opml.OpmlImportTask
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.servers.ServiceManager
+import au.com.shiftyjelly.pocketcasts.settings.stats.summary
 import au.com.shiftyjelly.pocketcasts.settings.viewmodel.ExportSettingsViewModel
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
 import au.com.shiftyjelly.pocketcasts.utils.Network
@@ -56,6 +58,8 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
     @Inject lateinit var podcastAddictInspector: PodcastAddictBackupInspector
 
     @Inject lateinit var podcastAddictImporter: PodcastAddictEpisodeImporter
+
+    @Inject lateinit var podcastAddictStatisticsStore: PodcastAddictStatisticsStore
 
     @Inject lateinit var playbackManager: PlaybackManager
 
@@ -239,16 +243,7 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         result.episodes.historyDifferences,
                         result.episodes.queuedDifferences,
                     ) + "\n" + (
-                        result.statistics?.let {
-                            getString(
-                                LR.string.podcast_player_backup_preview_stats_totals,
-                                it.days,
-                                it.wallListeningMs / 60000,
-                                it.contentListeningMs / 60000,
-                                it.speedSavedMs / 60000,
-                                it.silenceSavedMs / 60000,
-                            )
-                        }
+                        result.statistics?.summary(resources)
                             ?: getString(LR.string.podcast_player_backup_preview_stats_unavailable)
                         ) + "\n\n" + getString(LR.string.podcast_player_backup_preview_disclaimer)
                 }
@@ -268,19 +263,55 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                 .setMessage(message)
                 .setNegativeButton(LR.string.done, null)
             if (result is PodcastAddictBackupInspector.Result.Readable) {
-                if (result.missingFeedUrls.isNotEmpty()) {
-                    dialog.setNeutralButton(LR.string.podcast_player_backup_add_feeds) { _, _ ->
-                        confirmPodcastAddictSubscriptions(result)
-                    }
-                }
-                if (result.episodes.changes.isNotEmpty()) {
-                    dialog.setPositiveButton(LR.string.podcast_player_backup_review_apply) { _, _ ->
-                        confirmPodcastAddictEpisodes(result)
+                if (result.missingFeedUrls.isNotEmpty() || result.episodes.changes.isNotEmpty() || result.statistics != null) {
+                    dialog.setPositiveButton(LR.string.podcast_player_backup_review_actions) { _, _ ->
+                        showPodcastAddictActions(result)
                     }
                 }
             }
             dialog.show()
         }
+    }
+
+    private fun showPodcastAddictActions(result: PodcastAddictBackupInspector.Result.Readable) {
+        val actions = mutableListOf<Pair<Int, () -> Unit>>()
+        if (result.missingFeedUrls.isNotEmpty()) {
+            actions.add(LR.string.podcast_player_backup_add_feeds to { confirmPodcastAddictSubscriptions(result) })
+        }
+        if (result.episodes.changes.isNotEmpty()) {
+            actions.add(LR.string.podcast_player_backup_review_apply to { confirmPodcastAddictEpisodes(result) })
+        }
+        result.statistics?.let { statistics ->
+            actions.add(LR.string.podcast_player_backup_save_stats to { confirmPodcastAddictStatistics(statistics) })
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(LR.string.podcast_player_backup_review_actions)
+            .setItems(actions.map { getString(it.first) }.toTypedArray()) { _, index ->
+                actions[index].second()
+            }
+            .setNegativeButton(LR.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmPodcastAddictStatistics(statistics: PodcastAddictBackupInspector.SourceStatistics) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(LR.string.podcast_player_backup_save_stats)
+            .setMessage(LR.string.podcast_player_backup_save_stats_confirm)
+            .setNegativeButton(LR.string.cancel, null)
+            .setPositiveButton(LR.string.podcast_player_backup_save_stats) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val message = try {
+                        podcastAddictStatisticsStore.save(statistics)
+                        LR.string.podcast_player_backup_stats_saved
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        LR.string.podcast_player_backup_stats_save_failed
+                    }
+                    if (isAdded && view != null) showPodcastAddictMessage(getString(message))
+                }
+            }
+            .show()
     }
 
     private fun confirmPodcastAddictSubscriptions(result: PodcastAddictBackupInspector.Result.Readable) {

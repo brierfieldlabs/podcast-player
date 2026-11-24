@@ -60,6 +60,7 @@ import au.com.shiftyjelly.pocketcasts.compose.stats.CalendarHeatMap
 import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.localization.helper.StatsHelper
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
 import au.com.shiftyjelly.pocketcasts.settings.R
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
 import au.com.shiftyjelly.pocketcasts.utils.extensions.getActivity
@@ -150,6 +151,23 @@ private fun StatsPage(
         when (state) {
             is StatsViewModel.State.Loaded -> StatsPageLoaded(state, bottomInset, launchReviewDialog, onShowHeatmap, onListeningActivityInfoClick)
             is StatsViewModel.State.Error -> StatsPageError(onRetryClick)
+            is StatsViewModel.State.ImportedOnly -> LazyColumn(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp),
+                contentPadding = PaddingValues(bottom = bottomInset),
+            ) {
+                item { ImportedPodcastAddictStatistics(state.statistics) }
+                item {
+                    TextH40(
+                        text = stringResource(LR.string.profile_status_error_internet),
+                        textAlign = TextAlign.Center,
+                    )
+                    TextH40(
+                        text = stringResource(LR.string.retry),
+                        color = MaterialTheme.theme.colors.primaryInteractive01,
+                        modifier = Modifier.clickable { onRetryClick() }.padding(8.dp),
+                    )
+                }
+            }
             is StatsViewModel.State.Loading -> StatsPageLoading()
         }
     }
@@ -201,6 +219,9 @@ private fun StatsPageLoaded(
             .padding(horizontal = 16.dp, vertical = 20.dp),
         contentPadding = PaddingValues(bottom = bottomInset),
     ) {
+        state.importedStatistics?.let { statistics ->
+            item { ImportedPodcastAddictStatistics(statistics) }
+        }
         if (state.startedAt == null || state.startedAt.time <= 0) {
             item {
                 TextP40(stringResource(LR.string.profile_stats_listened_for))
@@ -296,6 +317,18 @@ private fun StatsPageLoaded(
             }
         }
     }
+}
+
+@Composable
+private fun ImportedPodcastAddictStatistics(statistics: PodcastAddictBackupInspector.SourceStatistics) {
+    TextC70(stringResource(LR.string.podcast_player_imported_stats_title))
+    Spacer(Modifier.height(6.dp))
+    TextP40(statistics.summary(LocalContext.current.resources))
+    Spacer(Modifier.height(6.dp))
+    TextP40(stringResource(LR.string.podcast_player_imported_stats_summary))
+    Spacer(Modifier.height(12.dp))
+    HorizontalDivider()
+    Spacer(Modifier.height(24.dp))
 }
 
 @Composable

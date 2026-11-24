@@ -63,6 +63,13 @@ class PodcastAddictBackupInspector @Inject constructor(
         val contentListeningMs: Long,
         val speedSavedMs: Long,
         val silenceSavedMs: Long,
+        val episodeDayCount: Long = 0,
+        val introSavedMs: Long = 0,
+        val outroSavedMs: Long = 0,
+        val forwardSavedMs: Long = 0,
+        val adsSavedMs: Long = 0,
+        val mutedChapterSavedMs: Long = 0,
+        val liveStreamMs: Long = 0,
     )
 
     sealed interface Result {
@@ -113,23 +120,7 @@ class PodcastAddictBackupInspector @Inject constructor(
                 val subscribedFeeds = localFeeds.map { it.url.trim() }.filter { it.isNotEmpty() }.toSet()
                 val podcasts = scanFeedCounts(database, localFeeds.groupingBy { it.url.trim() }.eachCount())
                 val episodeMatches = scanEpisodeMatches(database, localFeeds)
-                val statistics = database.rawQuery(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='playback_stats_day'",
-                    null,
-                ).use { it.moveToFirst() }.let { exists ->
-                    if (exists) {
-                        database.rawQuery(
-                            "SELECT COUNT(*), SUM(wall_played_ms), SUM(content_played_ms), " +
-                                "SUM(playback_speed_saved_ms), SUM(skipped_silence_ms) FROM playback_stats_day NOT INDEXED",
-                            null,
-                        ).use {
-                            it.moveToFirst()
-                            SourceStatistics(it.getInt(0), it.getLong(1), it.getLong(2), it.getLong(3), it.getLong(4))
-                        }
-                    } else {
-                        null
-                    }
-                }
+                val statistics = scanStatistics(database)
                 if (podcasts.feedCount == 0) return@withContext Result.Rejected(Reason.MissingFeedUrls)
 
                 var episodeCount = 0
@@ -185,6 +176,43 @@ class PodcastAddictBackupInspector @Inject constructor(
             Result.Rejected(Reason.CannotOpenBackup)
         } finally {
             temp.delete()
+        }
+    }
+
+    private fun scanStatistics(database: SQLiteDatabase): SourceStatistics? {
+        // Statistics are optional. An older backup must still be able to
+        // preview subscriptions and episodes if this schema is unavailable.
+        return try {
+            database.rawQuery(
+                "SELECT COUNT(*), SUM(wall_played_ms), SUM(content_played_ms), " +
+                    "SUM(playback_speed_saved_ms), SUM(skipped_silence_ms), " +
+                    "SUM(episodes_played_count), SUM(skip_intro_saved_ms), SUM(skip_outro_saved_ms), " +
+                    "SUM(skip_forward_saved_ms), SUM(skip_ads_saved_ms), SUM(muted_chapter_saved_ms), " +
+                    "SUM(live_stream_played_ms) FROM playback_stats_day NOT INDEXED",
+                null,
+            ).use {
+                it.moveToFirst()
+                if (it.getInt(0) == 0) {
+                    null
+                } else {
+                    SourceStatistics(
+                        days = it.getInt(0),
+                        wallListeningMs = it.getLong(1),
+                        contentListeningMs = it.getLong(2),
+                        speedSavedMs = it.getLong(3),
+                        silenceSavedMs = it.getLong(4),
+                        episodeDayCount = it.getLong(5),
+                        introSavedMs = it.getLong(6),
+                        outroSavedMs = it.getLong(7),
+                        forwardSavedMs = it.getLong(8),
+                        adsSavedMs = it.getLong(9),
+                        mutedChapterSavedMs = it.getLong(10),
+                        liveStreamMs = it.getLong(11),
+                    )
+                }
+            }
+        } catch (_: SQLiteException) {
+            null
         }
     }
 
