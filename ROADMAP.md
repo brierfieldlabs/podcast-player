@@ -1,11 +1,11 @@
 # Podcast Player Roadmap
 
-Version in development: **v1.3.1**. User-facing releases use SemVer only, not
+Version in development: **v1.3.2**. User-facing releases use SemVer only, not
 `test`, `rc` or an automated APK per commit.
 
 ## Accepted decisions
 
-- **Podcast Addict migration (#17, v1.3.1 trial):** existing exact subscription/episode matches use Podcast Addict values, including resets to unplayed; add missing subscriptions after review, preserve ambiguous and destination-only items. Local statistics snapshot; no unsupported server totals replacement. Owner requested one Import backup action instead of separate options; add missing feeds first and re-review newly available matches, then apply reviewed episode changes offline and save statistics together. See [migration workflow and acceptance](docs/podcast-addict-migration.md). Trial build authorised 24 November 2026; no live import or public release authorised.
+- **Podcast Addict migration (#17, v1.3.2 trial):** resolve actual RSS addresses via the existing OPML export service, not website URLs; existing exact subscription/episode matches use Podcast Addict values, including resets to unplayed; add missing subscriptions after review, preserve ambiguous and destination-only items. Local statistics snapshot; no unsupported server totals replacement. Owner requested one Import backup action instead of separate options; add missing feeds first and re-review newly available matches, then apply reviewed episode changes offline and save statistics together. See [migration workflow and acceptance](docs/podcast-addict-migration.md). Trial build authorised 24 November 2026; no live import or public release authorised.
 
 - **Episode Chat (#24):** Disabled in Podcast Player, including the player
   action, its tooltip, sign-in/upgrade prompts, and developer toggles. The

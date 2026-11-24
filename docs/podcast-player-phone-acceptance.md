@@ -1,6 +1,6 @@
-# Podcast Player phone acceptance (v1.3.1)
+# Podcast Player phone acceptance (v1.3.2)
 
-**Status:** v1.2.4 phone accepted; v1.3.0 built and delivered; simplified v1.3.1 trial approved, awaiting fresh exact-head CI and device testing. This is a trial APK, not approval to release publicly,
+**Status:** v1.2.4 phone accepted; v1.3.1 failed migration acceptance despite green CI; corrected v1.3.2 trial approved, awaiting fresh exact-head CI and device testing. This is a trial APK, not approval to release publicly,
 merge unverified changes, or migrate Podcast Addict history.
 
 The existing **Podcast Addict** installation remains the daily player. Do not
@@ -8,7 +8,7 @@ uninstall or change it. Read-only preview of the fresh backup is allowed. Do not
 
 ## Before installing
 
-- Confirm the APK says **Podcast Player v1.3.1** and is provided by the
+- Confirm the APK says **Podcast Player v1.3.2** and is provided by the
   Brierfield Labs GitHub build of the approved development commit.
 - Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
   installation, not a replacement that requires uninstalling or clearing data.
@@ -76,7 +76,7 @@ and approved migration implementation. See [migration plan](podcast-addict-migra
 This does not certify every checklist item or approve merging/releasing the player.
 Applying migration to real account data still needs **separate approval**.
 
-## v1.3.1 migration acceptance
+## v1.3.2 migration acceptance
 
 - Select a copy of the backup locally; confirm preview is read-only and check counts against the source. Verify missing/retained feeds and representative played, unplayed, partially played and favourite episodes, including duplicate enclosures and source timestamps.
 - Check that the existing player library, queue and playback are unchanged after dismissing preview. Do not clear application data.
@@ -87,3 +87,5 @@ Applying migration to real account data still needs **separate approval**.
 For v1.3.1, use one Import backup button rather than the v1.3.0 action menu. Check automatic online subscription acquisition and refreshed review, automatic continuation after offline/paused readiness, timeout without episode writes, and a combined completion report including historical statistics. If missing feeds remain, verify they are reported and skipped. The earlier v1.3.0 APK still uses the original workflow.
 
 **Failed v1.3.1 acceptance (24 November):** source 609 subscriptions, one exact match and zero proposed changes. The website-vs-RSS field was wrong. Do not repeat v1.3.1 import. In the next trial start online, check real RSS matching coverage (or diagnose remaining aliases/unknowns), verify representative episode states and dismissed exclusions before approving the overwrite. A completed build alone is not migration acceptance.
+
+For v1.3.2, start online and compare the preview against the private reference OPML comparison: 584 exact RSS matches out of 609 source subscriptions in a 660-address export, assuming the library has not changed. Those feeds contain 124125 source episode rows, not guaranteed target episode matches. Review the actual counts and representative playback states before approval. The remaining 25 source feeds lack exact matches; 24 are possible aliases only, one unresolved. Do not infer episode identity from titles alone or automatically remove destination-only subscriptions.
