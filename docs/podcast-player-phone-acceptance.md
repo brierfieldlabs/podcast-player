@@ -1,6 +1,6 @@
-# Podcast Player phone acceptance (v1.3.0)
+# Podcast Player phone acceptance (v1.3.1)
 
-**Status:** v1.2.4 phone accepted; v1.3.0 combined trial build approved, awaiting exact-head CI and device testing. This is a trial APK, not approval to release publicly,
+**Status:** v1.2.4 phone accepted; v1.3.0 built and delivered; simplified v1.3.1 trial approved, awaiting fresh exact-head CI and device testing. This is a trial APK, not approval to release publicly,
 merge unverified changes, or migrate Podcast Addict history.
 
 The existing **Podcast Addict** installation remains the daily player. Do not
@@ -8,7 +8,7 @@ uninstall or change it. Read-only preview of the fresh backup is allowed. Do not
 
 ## Before installing
 
-- Confirm the APK says **Podcast Player v1.3.0** and is provided by the
+- Confirm the APK says **Podcast Player v1.3.1** and is provided by the
   Brierfield Labs GitHub build of the approved development commit.
 - Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
   installation, not a replacement that requires uninstalling or clearing data.
@@ -76,12 +76,12 @@ and approved migration implementation. See [migration plan](podcast-addict-migra
 This does not certify every checklist item or approve merging/releasing the player.
 Applying migration to real account data still needs **separate approval**.
 
-## v1.3.0 migration acceptance
+## v1.3.1 migration acceptance
 
 - Select a copy of the backup locally; confirm preview is read-only and check counts against the source. Verify missing/retained feeds and representative played, unplayed, partially played and favourite episodes, including duplicate enclosures and source timestamps.
 - Check that the existing player library, queue and playback are unchanged after dismissing preview. Do not clear application data.
-- Controlled migration only after explicit approval of the real preview: confirm missing subscriptions first; refresh and preview again. Pause both devices and apply reviewed episode changes offline on one device only. Check the recovery record and verify after reconnection/refresh, including more than one batch when applicable.
+- Controlled migration only after explicit approval of the real preview: use Import backup to add missing subscriptions, then review the updated preview if shown. Pause both devices and apply reviewed episode changes offline on one device only. Check the recovery record and verify after reconnection/refresh, including more than one batch when applicable.
 - Historical statistics are a separate local snapshot, not part of account-wide sync. Save on each device only if desired and confirmed. Confirm re-saving does not add the totals twice.
 - Record unmatched feeds/episodes, source flag verification, history limitations and discrepancies before declaring acceptance.
 
-For the next simplified-import trial, use one Import backup button rather than the v1.3.0 action menu. Check automatic online subscription acquisition and refreshed review, automatic continuation after offline/paused readiness, timeout without episode writes, and a combined completion report including historical statistics. If missing feeds remain, verify they are reported and skipped. The earlier v1.3.0 APK still uses the original workflow.
+For v1.3.1, use one Import backup button rather than the v1.3.0 action menu. Check automatic online subscription acquisition and refreshed review, automatic continuation after offline/paused readiness, timeout without episode writes, and a combined completion report including historical statistics. If missing feeds remain, verify they are reported and skipped. The earlier v1.3.0 APK still uses the original workflow.

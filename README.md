@@ -14,11 +14,11 @@ changes. The original source acknowledgements and
 - [Roadmap and accepted behaviour](ROADMAP.md)
 - [Feature issues](https://github.com/brierfieldlabs/podcast-player/issues)
 - [Pending development PRs](https://github.com/brierfieldlabs/podcast-player/pulls)
-- Current pending phone/tablet trial source: **Podcast Player v1.3.0**
+- Current pending phone/tablet trial source: **Podcast Player v1.3.1**
   in [draft PR #7](https://github.com/brierfieldlabs/podcast-player/pull/7).
   It adds reviewed Podcast Addict subscription and episode migration, a separate local historical statistics summary,
   and a history sync batching fix. The app ID, signing certificate and Pocket Casts web sync stay unchanged.
-  The owner accepted v1.2.4 on the phone; the v1.3.0 trial requires exact-head build and device acceptance.
+  The v1.3.0 trial passed CI and was delivered; v1.3.1 replaces the separate import options with one Import backup action. Fresh exact-head build and device acceptance are required.
 - The [device acceptance checklist](docs/podcast-player-phone-acceptance.md)
   covers both Android devices, offline settings and bidirectional listening
   progress. This is not a public release or permission to import Podcast Addict.
