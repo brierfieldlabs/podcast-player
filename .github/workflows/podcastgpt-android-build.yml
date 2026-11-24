@@ -34,6 +34,13 @@ jobs:
             :modules:features:settings:compileDebugProdKotlin \
             :modules:features:podcasts:compileDebugProdKotlin --no-daemon --max-workers=2 \
             -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
+      - name: Run focused Podcast Addict migration regressions
+        run: |
+          ./gradlew :modules:services:repositories:testDebugProdUnitTest \
+            --tests '*PodcastAddictEpisodeStateTest' --tests '*SyncHistoryTaskTest' \
+            :modules:features:settings:testDebugProdUnitTest --tests '*StatsViewModelTest' \
+            --no-daemon --max-workers=2 \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
       - name: Assemble debugProd APK
         run: |
           ./gradlew :app:assembleDebugProd --no-daemon --max-workers=2 \

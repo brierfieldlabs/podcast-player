@@ -1,15 +1,14 @@
-# Podcast Player phone acceptance (v1.2.4)
+# Podcast Player phone acceptance (v1.3.0)
 
-**Status:** Awaiting user testing. This is a trial APK, not approval to release publicly,
+**Status:** v1.2.4 phone accepted; v1.3.0 combined trial build approved, awaiting exact-head CI and device testing. This is a trial APK, not approval to release publicly,
 merge unverified changes, or migrate Podcast Addict history.
 
 The existing **Podcast Addict** installation remains the daily player. Do not
-uninstall or change it. Do not import any backups or connect its history to
-Podcast Player during this test.
+uninstall or change it. Read-only preview of the fresh backup is allowed. Do not apply any subscription or episode changes to real account data until the owner explicitly approves the preview.
 
 ## Before installing
 
-- Confirm the APK says **Podcast Player v1.2.4** and is provided by the
+- Confirm the APK says **Podcast Player v1.3.0** and is provided by the
   Brierfield Labs GitHub build of the approved development commit.
 - Confirm Android offers an **Update** for the existing Podcast Player/PodcastGPT
   installation, not a replacement that requires uninstalling or clearing data.
@@ -76,3 +75,11 @@ the symptom and the episode/podcast action that produced it.
 and approved migration implementation. See [migration plan](podcast-addict-migration.md).
 This does not certify every checklist item or approve merging/releasing the player.
 Applying migration to real account data still needs **separate approval**.
+
+## v1.3.0 migration acceptance
+
+- Select a copy of the backup locally; confirm preview is read-only and check counts against the source. Verify missing/retained feeds and representative played, unplayed, partially played and favourite episodes, including duplicate enclosures and source timestamps.
+- Check that the existing player library, queue and playback are unchanged after dismissing preview. Do not clear application data.
+- Controlled migration only after explicit approval of the real preview: confirm missing subscriptions first; refresh and preview again. Pause both devices and apply reviewed episode changes offline on one device only. Check the recovery record and verify after reconnection/refresh, including more than one batch when applicable.
+- Historical statistics are a separate local snapshot, not part of account-wide sync. Save on each device only if desired and confirmed. Confirm re-saving does not add the totals twice.
+- Record unmatched feeds/episodes, source flag verification, history limitations and discrepancies before declaring acceptance.
