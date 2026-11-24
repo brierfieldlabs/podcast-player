@@ -83,3 +83,5 @@ Applying migration to real account data still needs **separate approval**.
 - Controlled migration only after explicit approval of the real preview: confirm missing subscriptions first; refresh and preview again. Pause both devices and apply reviewed episode changes offline on one device only. Check the recovery record and verify after reconnection/refresh, including more than one batch when applicable.
 - Historical statistics are a separate local snapshot, not part of account-wide sync. Save on each device only if desired and confirmed. Confirm re-saving does not add the totals twice.
 - Record unmatched feeds/episodes, source flag verification, history limitations and discrepancies before declaring acceptance.
+
+For the next simplified-import trial, use one Import backup button rather than the v1.3.0 action menu. Check automatic online subscription acquisition and refreshed review, automatic continuation after offline/paused readiness, timeout without episode writes, and a combined completion report including historical statistics. If missing feeds remain, verify they are reported and skipped. The earlier v1.3.0 APK still uses the original workflow.

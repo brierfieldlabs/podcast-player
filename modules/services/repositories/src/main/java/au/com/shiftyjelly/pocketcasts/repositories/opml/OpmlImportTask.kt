@@ -15,6 +15,8 @@ import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -35,11 +37,13 @@ import dagger.Lazy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
@@ -86,7 +90,7 @@ class OpmlImportTask @AssistedInject constructor(
         }
 
         /** Store a potentially large URL list in a private file, not WorkManager's 10 KB input. */
-        suspend fun runPodcastAddictMissingFeeds(feedUrls: List<String>, context: Context) {
+        suspend fun runPodcastAddictMissingFeeds(feedUrls: List<String>, context: Context): Boolean {
             val file = withContext(Dispatchers.IO) {
                 File.createTempFile(MIGRATION_FILE_PREFIX, ".opml", context.noBackupFilesDir).also { file ->
                     try {
@@ -97,19 +101,20 @@ class OpmlImportTask @AssistedInject constructor(
                     }
                 }
             }
-            try {
-                withContext(Dispatchers.Main) {
-                    run(workDataOf(INPUT_MIGRATION_FILE to file.name), context)
-                }
-            } catch (failure: Exception) {
-                file.delete()
-                throw failure
+            val (id, operation) = withContext(Dispatchers.Main) {
+                run(workDataOf(INPUT_MIGRATION_FILE to file.name), context)
             }
+            // Wait for this exact request, not an older completed OPML worker.
+            // Once enqueued, the worker owns the private file even if the UI closes.
+            withContext(Dispatchers.IO) { operation.result.get() }
+            val completed = WorkManager.getInstance(context).getWorkInfoByIdFlow(id)
+                .first { it?.state?.isFinished == true }
+            return completed?.state == WorkInfo.State.SUCCEEDED
         }
 
         fun workInfos(context: Context) = WorkManager.getInstance(context).getWorkInfosByTagFlow(WORKER_TAG)
 
-        private fun run(data: Data, context: Context) {
+        private fun run(data: Data, context: Context): Pair<UUID, Operation> {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
@@ -120,9 +125,10 @@ class OpmlImportTask @AssistedInject constructor(
                 .addTag(WORKER_TAG)
                 .build()
 
-            WorkManager.getInstance(context).enqueue(task)
+            val operation = WorkManager.getInstance(context).enqueue(task)
 
             Toast.makeText(context, context.getString(LR.string.settings_import_opml_toast), Toast.LENGTH_LONG).show()
+            return task.id to operation
         }
     }
 

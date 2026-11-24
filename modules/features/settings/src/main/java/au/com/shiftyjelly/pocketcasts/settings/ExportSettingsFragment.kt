@@ -16,6 +16,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
+import au.com.shiftyjelly.pocketcasts.models.to.RefreshState
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictEpisodeImporter
@@ -38,9 +39,11 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
 
@@ -167,7 +170,7 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
-    private fun showPodcastAddictPreview(uri: Uri) {
+    private fun showPodcastAddictPreview(uri: Uri, afterSubscriptions: Boolean = false) {
         val progress = AlertDialog.Builder(requireContext())
             .setTitle(LR.string.podcast_player_backup_preview_title)
             .setMessage(LR.string.podcast_player_backup_preview_busy)
@@ -178,7 +181,8 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
         viewLifecycleOwner.lifecycleScope.launch {
             val result = try {
                 val subscribedFeeds = withContext(Dispatchers.IO) {
-                    val queued = playbackManager.upNextQueue.allEpisodes.map { it.uuid }.toSet()
+                    val queued = playbackManager.upNextQueue.allEpisodes.map { it.uuid }.toMutableSet()
+                    playbackManager.getCurrentEpisode()?.uuid?.let { queued.add(it) }
                     podcastManager.findSubscribedNoOrder().mapNotNull { podcast ->
                         val url = podcast.podcastUrl ?: return@mapNotNull null
                         PodcastAddictBackupInspector.LocalFeed(
@@ -211,7 +215,7 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
             } finally {
                 progress.dismiss()
             }
-            if (!isAdded) return@launch
+            if (!isAdded || view == null) return@launch
             val message = when (result) {
                 is PodcastAddictBackupInspector.Result.Readable -> {
                     getString(
@@ -260,12 +264,21 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
             }
             val dialog = AlertDialog.Builder(requireContext())
                 .setTitle(LR.string.podcast_player_backup_preview_title)
-                .setMessage(message)
-                .setNegativeButton(LR.string.done, null)
+                .setMessage(
+                    if (afterSubscriptions && result is PodcastAddictBackupInspector.Result.Readable) {
+                        getString(LR.string.podcast_player_backup_after_feeds, result.missingSubscriptions) + "\n\n" + message
+                    } else if (afterSubscriptions) {
+                        getString(LR.string.podcast_player_backup_import_feeds_partial) + "\n\n" + message
+                    } else {
+                        message
+                    },
+                )
+                .setNegativeButton(LR.string.cancel, null)
             if (result is PodcastAddictBackupInspector.Result.Readable) {
-                if (result.missingFeedUrls.isNotEmpty() || result.episodes.changes.isNotEmpty() || result.statistics != null) {
-                    dialog.setPositiveButton(LR.string.podcast_player_backup_review_actions) { _, _ ->
-                        showPodcastAddictActions(result)
+                val addFeeds = !afterSubscriptions && result.missingFeedUrls.isNotEmpty()
+                if (addFeeds || result.episodes.changes.isNotEmpty() || result.statistics != null) {
+                    dialog.setPositiveButton(LR.string.podcast_player_backup_import_all) { _, _ ->
+                        importPodcastAddictBackup(uri, result, addFeeds)
                     }
                 }
             }
@@ -273,34 +286,67 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
-    private fun showPodcastAddictActions(result: PodcastAddictBackupInspector.Result.Readable) {
-        val actions = mutableListOf<Pair<Int, () -> Unit>>()
-        if (result.missingFeedUrls.isNotEmpty()) {
-            actions.add(LR.string.podcast_player_backup_add_feeds to { confirmPodcastAddictSubscriptions(result) })
+    private fun importPodcastAddictBackup(
+        uri: Uri,
+        result: PodcastAddictBackupInspector.Result.Readable,
+        addFeeds: Boolean,
+    ) {
+        val context = requireContext().applicationContext
+        if (addFeeds && !Network.isConnected(context)) {
+            showPodcastAddictMessage(getString(LR.string.podcast_player_backup_online_required))
+            return
         }
-        if (result.episodes.changes.isNotEmpty()) {
-            actions.add(LR.string.podcast_player_backup_review_apply to { confirmPodcastAddictEpisodes(result) })
-        }
-        result.statistics?.let { statistics ->
-            actions.add(LR.string.podcast_player_backup_save_stats to { confirmPodcastAddictStatistics(statistics) })
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(LR.string.podcast_player_backup_review_actions)
-            .setItems(actions.map { getString(it.first) }.toTypedArray()) { _, index ->
-                actions[index].second()
-            }
-            .setNegativeButton(LR.string.cancel, null)
+        val progress = AlertDialog.Builder(requireContext())
+            .setTitle(LR.string.podcast_player_backup_import_all)
+            .setMessage(LR.string.podcast_player_backup_import_starting)
+            .setCancelable(false)
             .show()
-    }
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                if (OpmlImportTask.workInfos(context).first().any { !it.state.isFinished }) {
+                    progress.dismiss()
+                    showPodcastAddictMessage(getString(LR.string.podcast_player_backup_import_busy))
+                    return@launch
+                }
+                if (addFeeds) {
+                    progress.setMessage(getString(LR.string.podcast_player_backup_import_feeds_busy))
+                    val succeeded = OpmlImportTask.runPodcastAddictMissingFeeds(result.missingFeedUrls, context)
+                    progress.dismiss()
+                    if (succeeded) {
+                        // Newly acquired episodes were not part of the first preview.
+                        // Review the updated matches before any episode overwrite.
+                        if (isAdded && view != null) showPodcastAddictPreview(uri, afterSubscriptions = true)
+                    } else {
+                        showPodcastAddictMessage(getString(LR.string.podcast_player_backup_import_feeds_partial))
+                    }
+                    return@launch
+                }
 
-    private fun confirmPodcastAddictStatistics(statistics: PodcastAddictBackupInspector.SourceStatistics) {
-        AlertDialog.Builder(requireContext())
-            .setTitle(LR.string.podcast_player_backup_save_stats)
-            .setMessage(LR.string.podcast_player_backup_save_stats_confirm)
-            .setNegativeButton(LR.string.cancel, null)
-            .setPositiveButton(LR.string.podcast_player_backup_save_stats) { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val message = try {
+                var updated = 0
+                if (result.episodes.changes.isNotEmpty()) {
+                    progress.setMessage(getString(LR.string.podcast_player_backup_wait_offline))
+                    val ready = withTimeoutOrNull(120_000L) {
+                        while (
+                            Network.isConnected(context) ||
+                            playbackManager.isPlaying() ||
+                            settings.getRefreshState() == RefreshState.Refreshing
+                        ) {
+                            delay(500)
+                        }
+                        true
+                    } ?: false
+                    if (!ready) {
+                        progress.dismiss()
+                        showPodcastAddictMessage(getString(LR.string.podcast_player_backup_offline_timeout))
+                        return@launch
+                    }
+                    progress.setMessage(getString(LR.string.podcast_player_backup_apply_busy))
+                    updated = podcastAddictImporter.applyReviewedChanges(result.episodes.changes).changed
+                }
+
+                val statistics = result.statistics
+                val statisticsStatus = if (statistics != null) {
+                    try {
                         podcastAddictStatisticsStore.save(statistics)
                         LR.string.podcast_player_backup_stats_saved
                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -308,91 +354,35 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                     } catch (_: Exception) {
                         LR.string.podcast_player_backup_stats_save_failed
                     }
-                    if (isAdded && view != null) showPodcastAddictMessage(getString(message))
+                } else {
+                    LR.string.podcast_player_backup_preview_stats_unavailable
                 }
-            }
-            .show()
-    }
-
-    private fun confirmPodcastAddictSubscriptions(result: PodcastAddictBackupInspector.Result.Readable) {
-        AlertDialog.Builder(requireContext())
-            .setTitle(LR.string.podcast_player_backup_add_feeds)
-            .setMessage(getString(LR.string.podcast_player_backup_add_feeds_confirm, result.missingFeedUrls.size))
-            .setNegativeButton(LR.string.cancel, null)
-            .setPositiveButton(LR.string.podcast_player_backup_add_feeds) { _, _ ->
-                val context = requireContext().applicationContext
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val message = try {
-                        if (OpmlImportTask.workInfos(context).first().any { !it.state.isFinished }) {
-                            LR.string.podcast_player_backup_import_busy
-                        } else {
-                            OpmlImportTask.runPodcastAddictMissingFeeds(result.missingFeedUrls, context)
-                            LR.string.podcast_player_backup_feeds_queued
-                        }
-                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        LR.string.podcast_player_backup_feeds_failed
-                    }
-                    if (isAdded && view != null) {
-                        showPodcastAddictMessage(getString(message))
-                    }
-                }
-            }
-            .show()
-    }
-
-    private fun confirmPodcastAddictEpisodes(result: PodcastAddictBackupInspector.Result.Readable) {
-        AlertDialog.Builder(requireContext())
-            .setTitle(LR.string.podcast_player_backup_review_apply)
-            .setMessage(
-                getString(
-                    LR.string.podcast_player_backup_apply_confirm,
-                    result.episodes.changes.size,
+                val message = getString(
+                    LR.string.podcast_player_backup_import_finished,
+                    updated,
                     result.missingSubscriptions,
                     result.episodes.queuedDifferences,
-                ),
-            )
-            .setNegativeButton(LR.string.cancel, null)
-            .setPositiveButton(LR.string.podcast_player_backup_apply) { _, _ ->
-                applyPodcastAddictEpisodes(result)
-            }
-            .show()
-    }
-
-    private fun applyPodcastAddictEpisodes(result: PodcastAddictBackupInspector.Result.Readable) {
-        val context = requireContext().applicationContext
-        if (Network.isConnected(context)) {
-            showPodcastAddictMessage(getString(LR.string.podcast_player_backup_offline_required))
-            return
-        }
-        val progress = AlertDialog.Builder(requireContext())
-            .setTitle(LR.string.podcast_player_backup_preview_title)
-            .setMessage(LR.string.podcast_player_backup_apply_busy)
-            .setCancelable(false)
-            .show()
-        viewLifecycleOwner.lifecycleScope.launch {
-            val message = try {
-                if (OpmlImportTask.workInfos(context).first().any { !it.state.isFinished }) {
-                    getString(LR.string.podcast_player_backup_import_busy)
-                } else {
-                    val applied = podcastAddictImporter.applyReviewedChanges(result.episodes.changes)
-                    getString(LR.string.podcast_player_backup_applied, applied.changed)
-                }
+                ) + "\n\n" + getString(statisticsStatus)
+                progress.dismiss()
+                showPodcastAddictMessage(message)
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                getString(LR.string.podcast_player_backup_apply_failed)
+                val failure = if (addFeeds) {
+                    LR.string.podcast_player_backup_import_feeds_partial
+                } else {
+                    LR.string.podcast_player_backup_apply_failed
+                }
+                progress.dismiss()
+                if (isAdded && view != null) showPodcastAddictMessage(getString(failure))
             } finally {
                 progress.dismiss()
-            }
-            if (isAdded && view != null) {
-                showPodcastAddictMessage(message)
             }
         }
     }
 
     private fun showPodcastAddictMessage(message: String) {
+        if (!isAdded || view == null) return
         AlertDialog.Builder(requireContext())
             .setTitle(LR.string.podcast_player_backup_preview_title)
             .setMessage(message)
