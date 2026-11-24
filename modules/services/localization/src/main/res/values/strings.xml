@@ -1887,11 +1887,14 @@
     <string name="settings_version">Version %1$s (%2$s)</string>
     <string name="podcast_player_backup_preview_category">Podcast Addict backup</string>
     <string name="podcast_player_backup_preview_choose">Preview a full backup (read-only)</string>
-    <string name="podcast_player_backup_preview_summary">Check a .backup file and compare its RSS feeds with your subscriptions. No episodes or settings will be imported.</string>
+    <string name="podcast_player_backup_preview_summary">Check a .backup file and compare its RSS feeds and episodes with your library. No data will be imported.</string>
     <string name="podcast_player_backup_preview_busy">Checking the backup and matching RSS feeds. Your listening history will not be changed.</string>
     <string name="podcast_player_backup_preview_title">Podcast Addict backup preview</string>
     <string name="podcast_player_backup_preview_results">Database readable.\nTotal podcast records: %1$d\nSubscribed feeds in backup: %2$d\nEpisode records: %3$d\nListening history records: %4$d\nEpisodes with resume positions: %5$d\nSubscribed feeds on this device: %6$d\nExact active-feed matches: %7$d\nAmbiguous matches: %8$d</string>
-    <string name="podcast_player_backup_preview_disclaimer">Only currently subscribed Podcast Addict feeds are matched by exact RSS URL, not by title. These are not verified episode matches. No played statuses, playback positions, favourites, or account data were changed. A future migration requires separate approval.</string>
+    <string name="podcast_player_backup_preview_episodes">Exact episode matches: %1$d\nAmbiguous local episodes: %2$d\nUnmatched local episodes in shared feeds: %3$d\nDifferent resume positions: %4$d\nDifferent favourites: %5$d\nMatches with completion history: %6$d</string>
+    <string name="podcast_player_backup_preview_stats_days">Days with source playback statistics: %1$d</string>
+    <string name="podcast_player_backup_preview_stats_unavailable">Daily playback statistics are not present in this backup.</string>
+    <string name="podcast_player_backup_preview_disclaimer">Podcast Addict takes priority for confidently matched data in a future import. Ambiguous or unmatched episodes are not changed. Completion history is evidence, not proof of current played status. No data was changed; applying an import requires separate approval.</string>
     <string name="podcast_player_backup_preview_rejected">This backup could not be safely previewed. Check that it is a complete, readable Podcast Addict .backup file. No data was changed.</string>
     <string name="podcast_player_backup_preview_no_feeds">This backup has no readable RSS feed URLs, so subscriptions cannot be matched. No data was changed.</string>
     <string name="podcast_player_backup_preview_too_large">The backup database is too large to inspect safely on this device. No data was changed.</string>

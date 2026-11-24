@@ -19,6 +19,7 @@ import au.com.shiftyjelly.pocketcasts.coroutines.di.ApplicationScope
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
 import au.com.shiftyjelly.pocketcasts.repositories.migration.PodcastAddictBackupInspector
 import au.com.shiftyjelly.pocketcasts.repositories.opml.OpmlImportTask
+import au.com.shiftyjelly.pocketcasts.repositories.podcast.EpisodeManager
 import au.com.shiftyjelly.pocketcasts.repositories.podcast.PodcastManager
 import au.com.shiftyjelly.pocketcasts.repositories.sync.SyncManager
 import au.com.shiftyjelly.pocketcasts.servers.ServiceManager
@@ -45,6 +46,8 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
     @Inject lateinit var settings: Settings
 
     @Inject lateinit var podcastManager: PodcastManager
+
+    @Inject lateinit var episodeManager: EpisodeManager
 
     @Inject lateinit var podcastAddictInspector: PodcastAddictBackupInspector
 
@@ -163,9 +166,20 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
         viewLifecycleOwner.lifecycleScope.launch {
             val result = try {
                 val subscribedFeeds = withContext(Dispatchers.IO) {
-                    podcastManager.findSubscribedNoOrder()
-                        .mapNotNull { it.podcastUrl }
-                        .toSet()
+                    podcastManager.findSubscribedNoOrder().mapNotNull { podcast ->
+                        val url = podcast.podcastUrl ?: return@mapNotNull null
+                        PodcastAddictBackupInspector.LocalFeed(
+                            url = url,
+                            episodes = episodeManager.findEpisodesByPodcastOrderedByPublishDate(podcast).map { episode ->
+                                PodcastAddictBackupInspector.LocalEpisode(
+                                    enclosure = episode.downloadUrl,
+                                    publicationDate = episode.publishedDate.time,
+                                    positionSeconds = episode.playedUpTo,
+                                    favourite = episode.isStarred,
+                                )
+                            },
+                        )
+                    }
                 }
                 podcastAddictInspector.inspect(uri, subscribedFeeds)
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -192,7 +206,18 @@ class ExportSettingsFragment : PreferenceFragmentCompat() {
                         result.localSubscribedFeedCount,
                         result.exactMatchedLocalFeeds,
                         result.ambiguousFeedMatches,
-                    ) + "\n\n" + getString(LR.string.podcast_player_backup_preview_disclaimer)
+                    ) + "\n\n" + getString(
+                        LR.string.podcast_player_backup_preview_episodes,
+                        result.episodes.exact,
+                        result.episodes.ambiguous,
+                        result.episodes.unmatched,
+                        result.episodes.resumeDifferences,
+                        result.episodes.favouriteDifferences,
+                        result.episodes.completionEvidence,
+                    ) + "\n" + (
+                        result.statisticsDays?.let { getString(LR.string.podcast_player_backup_preview_stats_days, it) }
+                            ?: getString(LR.string.podcast_player_backup_preview_stats_unavailable)
+                        ) + "\n\n" + getString(LR.string.podcast_player_backup_preview_disclaimer)
                 }
 
                 is PodcastAddictBackupInspector.Result.Rejected -> when (result.reason) {

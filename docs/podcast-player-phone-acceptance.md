@@ -72,6 +72,7 @@ subscriptions or playback positions, unexpectedly downloads played episodes,
 or behaves badly with background audio, **do not clear app data**. Record
 the symptom and the episode/podcast action that produced it.
 
-**Approval gate:** Only after these phone checks are accepted can the user
-approve merging/releasing the player. Podcast Addict migration remains
-planning-only, requires a fresh backup, and needs **separate approval**.
+**Approval gate:** The owner accepted v1.2.4 on the phone on 24 November 2026
+and approved migration implementation. See [migration plan](podcast-addict-migration.md).
+This does not certify every checklist item or approve merging/releasing the player.
+Applying migration to real account data still needs **separate approval**.
